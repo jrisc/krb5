@@ -718,6 +718,7 @@ AC_HELP_STRING([--with-netlib=LIBS], use user defined resolver library),
 	LIBS="$LIBS $withval"
 	AC_MSG_RESULT("netlib will use \'$withval\'")
   fi
+  KRB5_AC_ENABLE_DNS
 ],dnl
 [AC_LIBRARY_NET]
 )])dnl
