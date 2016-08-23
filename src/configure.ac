@@ -1402,6 +1402,8 @@ AC_PATH_PROG(GROFF, groff)
 
 KRB5_WITH_PAM
 
+KRB5_WITH_SELINUX
+
 # Make localedir work in autoconf 2.5x.
 if test "${localedir+set}" != set; then
     localedir='$(datadir)/locale'
