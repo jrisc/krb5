@@ -26,6 +26,12 @@
 
 #include "crypto_int.h"
 
+#include <openssl/rand.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#include <openssl/crypto.h>
+#endif
+
 krb5_error_code KRB5_CALLCONV
 krb5_c_random_seed(krb5_context context, krb5_data *data)
 {
@@ -96,9 +102,16 @@ cleanup:
 static krb5_boolean
 get_os_entropy(unsigned char *buf, size_t len)
 {
-#if defined(__linux__) && defined(SYS_getrandom)
     int r;
 
+    /* A wild FIPS mode appeared! */
+    if (FIPS_mode()) {
+        /* The return codes on this API are not good */
+        r = RAND_bytes(buf, len);
+        return r == 1;
+    }
+
+#if defined(__linux__) && defined(SYS_getrandom)
     while (len > 0) {
         /*
          * Pull from the /dev/urandom pool, but require it to have been seeded.
