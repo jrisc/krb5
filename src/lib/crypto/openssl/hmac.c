@@ -59,6 +59,7 @@
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/params.h>
 #include <openssl/core_names.h>
+#include <openssl/fips.h>
 #else
 #include <openssl/hmac.h>
 #endif
@@ -111,7 +112,11 @@ map_digest(const struct krb5_hash_provider *hash)
         return EVP_sha256();
     else if (hash == &krb5int_hash_sha384)
         return EVP_sha384();
-    else if (hash == &krb5int_hash_md5)
+
+    if (FIPS_mode())
+        return NULL;
+
+    if (hash == &krb5int_hash_md5)
         return EVP_md5();
     else if (hash == &krb5int_hash_md4)
         return EVP_md4();

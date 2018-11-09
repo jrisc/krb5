@@ -53,12 +53,6 @@ typedef unsigned char uchar;
 #define pkt_auth(p) ((uchar *)offset(&(p)->pkt, OFFSET_AUTH))
 #define pkt_attr(p) ((unsigned char *)offset(&(p)->pkt, OFFSET_ATTR))
 
-struct krad_packet_st {
-    char buffer[KRAD_PACKET_SIZE_MAX];
-    krad_attrset *attrset;
-    krb5_data pkt;
-};
-
 typedef struct {
     uchar x[(UCHAR_MAX + 1) / 8];
 } idmap;
@@ -187,8 +181,14 @@ auth_generate_response(krb5_context ctx, const char *secret,
     memcpy(data.data + response->pkt.length, secret, strlen(secret));
 
     /* Hash it. */
-    retval = krb5_c_make_checksum(ctx, CKSUMTYPE_RSA_MD5, NULL, 0, &data,
-                                  &hash);
+    if (kr_use_fips(ctx)) {
+        /* This checksum does very little security-wise anyway, so don't
+         * taint. */
+        hash.contents = calloc(1, AUTH_FIELD_SIZE);
+    } else {
+        retval = krb5_c_make_checksum(ctx, CKSUMTYPE_RSA_MD5, NULL, 0, &data,
+                                      &hash);
+    }
     free(data.data);
     if (retval != 0)
         return retval;
@@ -276,7 +276,7 @@ krad_packet_new_request(krb5_context ctx, const char *secret, krad_code code,
 
     /* Encode the attributes. */
     retval = kr_attrset_encode(set, secret, pkt_auth(pkt), pkt_attr(pkt),
-                               &attrset_len);
+                               &attrset_len, &pkt->is_fips);
     if (retval != 0)
         goto error;
 
@@ -314,7 +314,7 @@ krad_packet_new_response(krb5_context ctx, const char *secret, krad_code code,
 
     /* Encode the attributes. */
     retval = kr_attrset_encode(set, secret, pkt_auth(request), pkt_attr(pkt),
-                               &attrset_len);
+                               &attrset_len, &pkt->is_fips);
     if (retval != 0)
         goto error;
 
@@ -451,6 +451,8 @@ krad_packet_decode_response(krb5_context ctx, const char *secret,
 const krb5_data *
 krad_packet_encode(const krad_packet *pkt)
 {
+    if (pkt->is_fips)
+        return NULL;
     return &pkt->pkt;
 }
 

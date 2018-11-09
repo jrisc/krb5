@@ -38,6 +38,10 @@
 
 #include <openssl/evp.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#endif
+
 /*
  * The loopback field is a pointer to the structure.  If the application copies
  * the state (not a valid operation, but one which happens to works with some
@@ -68,6 +72,9 @@ k5_arcfour_docrypt(krb5_key key, const krb5_data *state, krb5_crypto_iov *data,
     krb5_crypto_iov *iov     = NULL;
     EVP_CIPHER_CTX *ctx = NULL;
     struct arcfour_state *arcstate;
+
+    if (FIPS_mode())
+        return KRB5_CRYPTO_INTERNAL;
 
     arcstate = (state != NULL) ? (void *)state->data : NULL;
     if (arcstate != NULL) {
@@ -116,7 +123,12 @@ k5_arcfour_docrypt(krb5_key key, const krb5_data *state, krb5_crypto_iov *data,
 static void
 k5_arcfour_free_state(krb5_data *state)
 {
-    struct arcfour_state *arcstate = (void *)state->data;
+    struct arcfour_state *arcstate;
+
+    if (FIPS_mode())
+        return;
+
+    arcstate = (void *) state->data;
 
     EVP_CIPHER_CTX_free(arcstate->ctx);
     free(arcstate);
@@ -127,6 +139,9 @@ k5_arcfour_init_state(const krb5_keyblock *key,
                       krb5_keyusage keyusage, krb5_data *new_state)
 {
     struct arcfour_state *arcstate;
+
+    if (FIPS_mode())
+        return KRB5_CRYPTO_INTERNAL;
 
     /*
      * The cipher state here is a saved pointer to a struct arcfour_state
