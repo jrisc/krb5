@@ -49,7 +49,6 @@ char eighteen_bs[9];
 char party_u_name[] = "lha@SU.SE";
 char party_v_name[] = "krbtgt/SU.SE@SU.SE";
 int enctype_aes = ENCTYPE_AES256_CTS_HMAC_SHA1_96;
-int enctype_des3 = ENCTYPE_DES3_CBC_SHA1;
 const krb5_data lha_data = DATA_FROM_STRING("lha");
 
 krb5_octet key1_hex[] =
@@ -181,36 +180,6 @@ main(int argc, char **argv)
         krb5_free_keyblock_contents(context, &key_block);
     } else {
         printf("FAILURE: TEST 2 (SHA-256/AES), Incorrect key value generated!\n");
-        retval = 1;
-        goto cleanup;
-    }
-
-    /* TEST 3: SHA-512/DES3 */
-    /* set up algorithm id */
-    alg_id.algorithm.data = (char *)krb5_pkinit_sha512_oid;
-    alg_id.algorithm.length = krb5_pkinit_sha512_oid_len;
-
-    enctype = enctype_des3;
-
-    /* call pkinit_alg_agility_kdf() with test vector values*/
-    if (0 != (retval = pkinit_alg_agility_kdf(context, &secret,
-                                              &alg_id.algorithm,
-                                              u_principal, v_principal,
-                                              enctype, &as_req, &pk_as_rep,
-                                              &key_block))) {
-        printf("ERROR in pkinit_kdf_test: kdf call failed, retval = %d",
-               retval);
-        goto cleanup;
-    }
-
-    /* compare key to expected key value */
-
-    if ((key_block.length == sizeof(key3_hex)) &&
-        (0 == memcmp(key_block.contents, key3_hex, key_block.length))) {
-        printf("SUCCESS: TEST 3 (SHA-512/DES3), Correct key value generated.\n");
-        retval = 0;
-    } else {
-        printf("FAILURE: TEST 2 (SHA-512/DES3), Incorrect key value generated!\n");
         retval = 1;
         goto cleanup;
     }
