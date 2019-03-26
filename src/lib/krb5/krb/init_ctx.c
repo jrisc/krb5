@@ -59,7 +59,6 @@
 static krb5_enctype default_enctype_list[] = {
     ENCTYPE_AES256_CTS_HMAC_SHA1_96, ENCTYPE_AES128_CTS_HMAC_SHA1_96,
     ENCTYPE_AES256_CTS_HMAC_SHA384_192, ENCTYPE_AES128_CTS_HMAC_SHA256_128,
-    ENCTYPE_DES3_CBC_SHA1,
     ENCTYPE_ARCFOUR_HMAC,
     ENCTYPE_CAMELLIA128_CTS_CMAC, ENCTYPE_CAMELLIA256_CTS_CMAC,
     0
@@ -450,8 +449,6 @@ krb5int_parse_enctype_list(krb5_context context, const char *profkey,
             /* Set all enctypes in the default list. */
             for (i = 0; default_list[i]; i++)
                 mod_list(default_list[i], sel, weak, &list);
-        } else if (strcasecmp(token, "des3") == 0) {
-            mod_list(ENCTYPE_DES3_CBC_SHA1, sel, weak, &list);
         } else if (strcasecmp(token, "aes") == 0) {
             mod_list(ENCTYPE_AES256_CTS_HMAC_SHA1_96, sel, weak, &list);
             mod_list(ENCTYPE_AES128_CTS_HMAC_SHA1_96, sel, weak, &list);

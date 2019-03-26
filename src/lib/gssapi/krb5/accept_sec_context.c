@@ -1030,7 +1030,6 @@ kg_accept_krb5(minor_status, context_handle,
             }
 
             switch (negotiated_etype) {
-            case ENCTYPE_DES3_CBC_SHA1:
             case ENCTYPE_ARCFOUR_HMAC:
             case ENCTYPE_ARCFOUR_HMAC_EXP:
                 /* RFC 4121 accidentally omits RC4-HMAC-EXP as a "not-newer"
