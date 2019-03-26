@@ -1,7 +1,6 @@
 mydir=lib$(S)crypto$(S)builtin$(S)enc_provider
 BUILDTOP=$(REL)..$(S)..$(S)..$(S)..
-LOCALINCLUDES = -I$(srcdir)/../des 	\
-		-I$(srcdir)/../aes 	\
+LOCALINCLUDES = -I$(srcdir)/../aes 	\
 		-I$(srcdir)/../camellia \
 		-I$(srcdir)/../../krb 	\
 		-I$(srcdir)/..
@@ -11,19 +10,16 @@ LOCALINCLUDES = -I$(srcdir)/../des 	\
 ##DOS##OBJFILE = ..\..\$(OUTPRE)enc_provider.lst
 
 STLIBOBJS= \
-	des3.o 	\
 	rc4.o 	\
 	aes.o   \
 	camellia.o
 
 OBJS= \
-	$(OUTPRE)des3.$(OBJEXT) 	\
 	$(OUTPRE)aes.$(OBJEXT) 	\
 	$(OUTPRE)camellia.$(OBJEXT)	\
 	$(OUTPRE)rc4.$(OBJEXT)
 
 SRCS= \
-	$(srcdir)/des3.c 	\
 	$(srcdir)/aes.c 	\
 	$(srcdir)/camellia.c	\
 	$(srcdir)/rc4.c

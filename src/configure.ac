@@ -1480,7 +1480,6 @@ V5_AC_OUTPUT_MAKEFILE(.
 	lib/crypto lib/crypto/krb lib/crypto/$CRYPTO_IMPL
 	lib/crypto/$CRYPTO_IMPL/enc_provider
 	lib/crypto/$CRYPTO_IMPL/hash_provider
-	lib/crypto/$CRYPTO_IMPL/des
 	lib/crypto/$CRYPTO_IMPL/md4 lib/crypto/$CRYPTO_IMPL/md5
         lib/crypto/$CRYPTO_IMPL/sha1 lib/crypto/$CRYPTO_IMPL/sha2
 	lib/crypto/$CRYPTO_IMPL/aes lib/crypto/$CRYPTO_IMPL/camellia
