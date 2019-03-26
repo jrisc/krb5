@@ -97,17 +97,6 @@ kg_setup_keys(krb5_context context, krb5_gss_ctx_id_rec *ctx, krb5_key subkey,
         return code;
 
     switch (subkey->keyblock.enctype) {
-    case ENCTYPE_DES3_CBC_SHA1:
-        code = kg_copy_keys(context, ctx, subkey);
-        if (code != 0)
-            return code;
-
-        ctx->enc->keyblock.enctype = ENCTYPE_DES3_CBC_RAW;
-        ctx->seq->keyblock.enctype = ENCTYPE_DES3_CBC_RAW;
-        ctx->signalg = SGN_ALG_HMAC_SHA1_DES3_KD;
-        ctx->cksum_size = 20;
-        ctx->sealalg = SEAL_ALG_DES3KD;
-        break;
     case ENCTYPE_ARCFOUR_HMAC:
     case ENCTYPE_ARCFOUR_HMAC_EXP:
         /* RFC 4121 accidentally omits RC4-HMAC-EXP as a "not-newer" enctype,
