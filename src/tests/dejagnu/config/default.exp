@@ -15,8 +15,6 @@ set timeout 100
 set stty_init {erase \^h kill \^u}
 set env(TERM) dumb
 
-set des3_krbtgt 0
-
 if { [string length $VALGRIND] } {
     rename spawn valgrind_aux_spawn
     proc spawn { args } {
@@ -106,16 +104,8 @@ if { $PRIOCNTL_HACK } {
 
 set passes {
     {
-	des3
-	mode=udp
-	des3_krbtgt=1
-	{supported_enctypes=des3-cbc-sha1:normal}
-	{dummy=[verbose -log "DES3 TGT, DES3 enctype"]}
-    }
-    {
 	aes-only
 	mode=udp
-	des3_krbtgt=0
 	{supported_enctypes=aes256-cts-hmac-sha1-96:normal}
 	{permitted_enctypes(kdc)=aes256-cts-hmac-sha1-96}
 	{permitted_enctypes(client)=aes256-cts-hmac-sha1-96}
@@ -130,7 +120,6 @@ set passes {
     {
 	aes-sha2-only
 	mode=udp
-	des3_krbtgt=0
 	{supported_enctypes=aes256-sha2:normal}
 	{permitted_enctypes(kdc)=aes256-sha2}
 	{permitted_enctypes(replica)=aes256-sha2}
@@ -146,7 +135,6 @@ set passes {
     {
 	camellia-only
 	mode=udp
-	des3_krbtgt=0
 	{supported_enctypes=camellia256-cts:normal}
 	{permitted_enctypes(kdc)=camellia256-cts}
 	{permitted_enctypes(replica)=camellia256-cts}
@@ -160,31 +148,8 @@ set passes {
 	{dummy=[verbose -log "Camellia-256 enctype"]}
     }
     {
-	aes-des3
-	mode=udp
-	des3_krbtgt=0
-	{supported_enctypes=aes256-cts-hmac-sha1-96:normal des3-cbc-sha1:normal}
-	{permitted_enctypes(kdc)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{permitted_enctypes(client)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{permitted_enctypes(server)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{master_key_type=aes256-cts-hmac-sha1-96}
-	{dummy=[verbose -log "AES + DES3 + DES enctypes"]}
-    }
-    {
-	aes-des3tgt
-	mode=udp
-	des3_krbtgt=1
-	{supported_enctypes=aes256-cts-hmac-sha1-96:normal des3-cbc-sha1:normal}
-	{permitted_enctypes(kdc)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{permitted_enctypes(client)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{permitted_enctypes(server)=aes256-cts-hmac-sha1-96 des3-cbc-sha1}
-	{master_key_type=aes256-cts-hmac-sha1-96}
-	{dummy=[verbose -log "AES enctypes, DES3 TGT"]}
-    }
-    {
 	all-enctypes
 	mode=udp
-	des3_krbtgt=0
 	{allow_weak_crypto(kdc)=false}
 	{allow_weak_crypto(replica)=false}
 	{allow_weak_crypto(client)=false}
@@ -946,7 +911,6 @@ proc setup_kerberos_db { standalone } {
     global REALMNAME KDB5_UTIL KADMIN_LOCAL KEY
     global tmppwd hostname
     global spawn_id
-    global des3_krbtgt
     global multipass_name last_passname_db
 
     set failall 0
@@ -1143,48 +1107,6 @@ proc setup_kerberos_db { standalone } {
 	}
     }
 
-    if $des3_krbtgt {
-	# Set the TGT key to DES3.
-	set test "kadmin.local TGT to DES3"
-	set body {
-	    if $failall {
-		break
-	    }
-	    spawn $KADMIN_LOCAL -r $REALMNAME -e des3-cbc-sha1:normal
-	    verbose "starting $test"
-	    expect_after $def_exp_after
-
-	    expect "kadmin.local: "
-	    send "cpw -randkey krbtgt/$REALMNAME@$REALMNAME\r"
-	    # It echos...
-	    expect "cpw -randkey krbtgt/$REALMNAME@$REALMNAME\r"
-	    expect {
-		"Key for \"krbtgt/$REALMNAME@$REALMNAME\" randomized." { }
-	    }
-	    expect "kadmin.local: "
-	    send "quit\r"
-	    expect eof
-	    catch expect_after
-	    if ![check_exit_status kadmin_local] {
-		break
-	    }
-	}
-	set ret [catch $body]
-	catch "expect eof"
-	catch expect_after
-	if $ret {
-	    set failall 1
-	    if $standalone {
-		fail $test
-	    } else {
-		delete_db
-	    }
-	} else {
-	    if $standalone {
-		pass $test
-	    }
-	}
-    }
     envstack_pop
 
     # create the admin database lock file
