@@ -1017,8 +1017,6 @@ enctype_name(krb5_enctype ktype, char *buf, size_t buflen)
         name = "rsaEncryption-EnvOID";
     else if (ktype == ENCTYPE_RSA_ES_OAEP_ENV)
         name = "id-RSAES-OAEP-EnvOID";
-    else if (ktype == ENCTYPE_DES3_CBC_ENV)
-        name = "des-ede3-cbc-EnvOID";
     else
         return krb5_enctype_to_name(ktype, FALSE, buf, buflen);
 
@@ -1605,8 +1603,6 @@ krb5_boolean
 enctype_requires_etype_info_2(krb5_enctype enctype)
 {
     switch(enctype) {
-    case ENCTYPE_DES3_CBC_SHA1:
-    case ENCTYPE_DES3_CBC_RAW:
     case ENCTYPE_ARCFOUR_HMAC:
     case ENCTYPE_ARCFOUR_HMAC_EXP :
         return 0;

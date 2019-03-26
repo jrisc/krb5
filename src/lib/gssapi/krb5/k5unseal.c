@@ -131,27 +131,20 @@ kg_unseal_v1(context, minor_status, ctx, ptr, bodysize, message_buffer,
        but few enough that we can try them all. */
 
     if ((ctx->sealalg == SEAL_ALG_NONE && signalg > 1) ||
-        (ctx->sealalg == SEAL_ALG_DES3KD &&
-         signalg != SGN_ALG_HMAC_SHA1_DES3_KD)||
         (ctx->sealalg == SEAL_ALG_MICROSOFT_RC4 &&
          signalg != SGN_ALG_HMAC_MD5)) {
         *minor_status = 0;
         return GSS_S_DEFECTIVE_TOKEN;
     }
 
-    switch (signalg) {
-    case SGN_ALG_HMAC_MD5:
-        cksum_len = 8;
-        if (toktype != KG_TOK_SEAL_MSG)
-            sign_usage = 15;
-        break;
-    case SGN_ALG_HMAC_SHA1_DES3_KD:
-        cksum_len = 20;
-        break;
-    default:
+    if (signalg != SGN_ALG_HMAC_MD5) {
         *minor_status = 0;
         return GSS_S_DEFECTIVE_TOKEN;
     }
+
+    cksum_len = 8;
+    if (toktype != KG_TOK_SEAL_MSG)
+        sign_usage = 15;
 
     if ((size_t)bodysize < 14 + cksum_len) {
         *minor_status = 0;
@@ -252,63 +245,52 @@ kg_unseal_v1(context, minor_status, ctx, ptr, bodysize, message_buffer,
     /* compute the checksum of the message */
 
     /* initialize the the cksum */
-    switch (signalg) {
-    case SGN_ALG_HMAC_MD5:
-        md5cksum.checksum_type = CKSUMTYPE_HMAC_MD5_ARCFOUR;
-        break;
-    case SGN_ALG_HMAC_SHA1_DES3_KD:
-        md5cksum.checksum_type = CKSUMTYPE_HMAC_SHA1_DES3;
-        break;
-    default:
-        abort ();
-    }
+    if (signalg != SGN_ALG_HMAC_MD5)
+        abort();
+    md5cksum.checksum_type = CKSUMTYPE_HMAC_MD5_ARCFOUR;
 
     code = krb5_c_checksum_length(context, md5cksum.checksum_type, &sumlen);
     if (code)
         return(code);
     md5cksum.length = sumlen;
 
-    switch (signalg) {
-    default:
+    if (signalg != SGN_ALG_HMAC_MD5) {
         *minor_status = 0;
         return(GSS_S_DEFECTIVE_TOKEN);
-
-    case SGN_ALG_HMAC_SHA1_DES3_KD:
-    case SGN_ALG_HMAC_MD5:
-        /* compute the checksum of the message */
-
-        /* 8 = bytes of token body to be checksummed according to spec */
-
-        if (! (data_ptr = xmalloc(8 + plainlen))) {
-            if (sealalg != 0xffff)
-                xfree(plain);
-            if (toktype == KG_TOK_SEAL_MSG)
-                gssalloc_free(token.value);
-            *minor_status = ENOMEM;
-            return(GSS_S_FAILURE);
-        }
-
-        (void) memcpy(data_ptr, ptr-2, 8);
-
-        (void) memcpy(data_ptr+8, plain, plainlen);
-
-        plaind.length = 8 + plainlen;
-        plaind.data = data_ptr;
-        code = krb5_k_make_checksum(context, md5cksum.checksum_type,
-                                    ctx->seq, sign_usage,
-                                    &plaind, &md5cksum);
-        xfree(data_ptr);
-
-        if (code) {
-            if (toktype == KG_TOK_SEAL_MSG)
-                gssalloc_free(token.value);
-            *minor_status = code;
-            return(GSS_S_FAILURE);
-        }
-
-        code = k5_bcmp(md5cksum.contents, ptr + 14, cksum_len);
-        break;
     }
+
+    /* compute the checksum of the message */
+
+    /* 8 = bytes of token body to be checksummed according to spec */
+
+    if (! (data_ptr = xmalloc(8 + plainlen))) {
+        if (sealalg != 0xffff)
+            xfree(plain);
+        if (toktype == KG_TOK_SEAL_MSG)
+            gssalloc_free(token.value);
+        *minor_status = ENOMEM;
+        return(GSS_S_FAILURE);
+    }
+
+    (void) memcpy(data_ptr, ptr-2, 8);
+
+    (void) memcpy(data_ptr+8, plain, plainlen);
+
+    plaind.length = 8 + plainlen;
+    plaind.data = data_ptr;
+    code = krb5_k_make_checksum(context, md5cksum.checksum_type,
+                                ctx->seq, sign_usage,
+                                &plaind, &md5cksum);
+    xfree(data_ptr);
+
+    if (code) {
+        if (toktype == KG_TOK_SEAL_MSG)
+            gssalloc_free(token.value);
+        *minor_status = code;
+        return(GSS_S_FAILURE);
+    }
+
+    code = k5_bcmp(md5cksum.contents, ptr + 14, cksum_len);
 
     krb5_free_checksum_contents(context, &md5cksum);
     if (sealalg != 0xffff)

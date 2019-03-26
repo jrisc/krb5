@@ -54,7 +54,7 @@ proc doit { } {
     global REALMNAME KEY
     global KADMIN_LOCAL KTUTIL KDB5_UTIL KPROPLOG KPROP kpropd_spawn_id
     global hostname tmppwd spawn_id timeout
-    global KRBIV supported_enctypes portbase mode ulog des3_krbtgt
+    global KRBIV supported_enctypes portbase mode ulog
 
     # Delete any db, ulog files
     delete_db

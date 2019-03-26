@@ -1,6 +1,6 @@
 mydir=lib$(S)crypto$(S)openssl
 BUILDTOP=$(REL)..$(S)..$(S)..
-SUBDIRS=camellia des aes md4 md5  sha1 sha2 enc_provider hash_provider
+SUBDIRS=camellia aes md4 md5  sha1 sha2 enc_provider hash_provider
 LOCALINCLUDES = -I$(srcdir)/../krb -I$(srcdir)
 
 STLIBOBJS=\
@@ -24,14 +24,14 @@ SRCS=\
 	$(srcdir)/sha256.c	\
 	$(srcdir)/stubs.c
 
-STOBJLISTS= des/OBJS.ST md4/OBJS.ST 	\
+STOBJLISTS= md4/OBJS.ST 		\
 	md5/OBJS.ST sha1/OBJS.ST sha2/OBJS.ST 	\
 	enc_provider/OBJS.ST 		\
 	hash_provider/OBJS.ST 		\
 	aes/OBJS.ST 			\
 	OBJS.ST
 
-SUBDIROBJLISTS= des/OBJS.ST md4/OBJS.ST 	\
+SUBDIROBJLISTS= md4/OBJS.ST 		\
 		md5/OBJS.ST sha1/OBJS.ST sha2/OBJS.ST 	\
 		enc_provider/OBJS.ST 		\
 		hash_provider/OBJS.ST 		\
@@ -42,7 +42,7 @@ includes: depend
 
 depend: $(SRCS)
 
-clean-unix:: clean-libobjs
+clean-unix:: clean-libobjsn
 
 @lib_frag@
 @libobj_frag@
