@@ -129,7 +129,7 @@ enctype                    weak?      krb5     Windows
 des-cbc-crc                weak       <1.18    >=2000
 des-cbc-md4                weak       <1.18    ?
 des-cbc-md5                weak       <1.18    >=2000
-des3-cbc-sha1              deprecated >=1.1    none
+des3-cbc-sha1              deprecated <1.18    none
 arcfour-hmac               deprecated >=1.3    >=2000
 arcfour-hmac-exp           weak       >=1.3    >=2000
 aes128-cts-hmac-sha1-96               >=1.3    >=Vista
@@ -148,9 +148,11 @@ default.
 krb5 releases 1.17 and later flag deprecated encryption types
 (including ``des3-cbc-sha1`` and ``arcfour-hmac``) in KDC logs and
 kadmin output.  krb5 release 1.19 issues a warning during initial
-authentication if ``des3-cbc-sha1`` is used.  Future releases will
-disable ``des3-cbc-sha1`` by default and eventually remove support for
-it.
+authentication if ``des3-cbc-sha1`` is used.
+
+krb5 releases 1.18 and later remove single-DES and 3DES
+(downstream-only patch) enctype support.  Microsoft Windows never
+supported 3DES.
 
 
 Migrating away from older encryption types
