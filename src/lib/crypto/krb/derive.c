@@ -27,6 +27,13 @@
 
 #include "crypto_int.h"
 
+#ifdef OSSL_KDFS
+#include <openssl/evp.h>
+#include <openssl/kdf.h>
+#else
+#error "Refusing to build without OpenSSL KDFs!"
+#endif
+
 static krb5_key
 find_cached_dkey(struct derived_key *list, const krb5_data *constant)
 {
@@ -77,55 +84,193 @@ cleanup:
     return ENOMEM;
 }
 
+#ifdef OSSL_KDFS
 static krb5_error_code
-derive_random_rfc3961(const struct krb5_enc_provider *enc,
-                      krb5_key inkey, krb5_data *outrnd,
-                      const krb5_data *in_constant)
+openssl_kbdkf_counter_hmac(const struct krb5_hash_provider *hash,
+                           krb5_key inkey, krb5_data *outrnd,
+                           const krb5_data *label, const krb5_data *context)
 {
-    size_t blocksize, keybytes, n;
+    krb5_error_code ret = KRB5_CRYPTO_INTERNAL;
+    EVP_KDF_CTX *ctx = NULL;
+    const EVP_MD *digest;
+
+    if (!strcmp(hash->hash_name, "SHA1"))
+        digest = EVP_sha1();
+    else if (!strcmp(hash->hash_name, "SHA-256"))
+        digest = EVP_sha256();
+    else if (!strcmp(hash->hash_name, "SHA-384"))
+        digest = EVP_sha384();
+    else
+        goto done;
+
+    ctx = EVP_KDF_CTX_new_id(EVP_KDF_KB);
+    if (!ctx)
+        goto done;
+
+    if (EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_MD, digest) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MAC_TYPE,
+                     EVP_KDF_KB_MAC_TYPE_HMAC) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KEY, inkey->keyblock.contents,
+                     inkey->keyblock.length) != 1 ||
+        (context->length > 0 &&
+         EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_INFO, context->data,
+                      context->length) != 1) ||
+        (label->length > 0 &&
+         EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_SALT, label->data,
+                      label->length) != 1) ||
+        EVP_KDF_derive(ctx, (unsigned char *)outrnd->data,
+                       outrnd->length) != 1)
+        goto done;
+
+    ret = 0;
+done:
+    if (ret)
+        zap(outrnd->data, outrnd->length);
+    EVP_KDF_CTX_free(ctx);
+    return ret;
+}
+
+static krb5_error_code
+openssl_kbkdf_feedback_cmac(const struct krb5_enc_provider *enc,
+                            krb5_key inkey, krb5_data *outrnd,
+                            const krb5_data *in_constant)
+{
+    krb5_error_code ret = KRB5_CRYPTO_INTERNAL;
+    EVP_KDF_CTX *ctx = NULL;
+    const EVP_CIPHER *cipher;
+    static unsigned char zeroes[16];
+
+    memset(zeroes, 0, sizeof(zeroes));
+
+    if (enc->keylength == 16)
+        cipher = EVP_camellia_128_cbc();
+    else if (enc->keylength == 32)
+        cipher = EVP_camellia_256_cbc();
+    else
+        goto done;
+
+    ctx = EVP_KDF_CTX_new_id(EVP_KDF_KB);
+    if (!ctx)
+        goto done;
+
+    if (EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MODE,
+                     EVP_KDF_KB_MODE_FEEDBACK) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_MAC_TYPE,
+                     EVP_KDF_KB_MAC_TYPE_CMAC) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_CIPHER, cipher) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KEY, inkey->keyblock.contents,
+                     inkey->keyblock.length) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_SALT, in_constant->data,
+                     in_constant->length) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KB_SEED, zeroes,
+                     sizeof(zeroes)) != 1 ||
+        EVP_KDF_derive(ctx, (unsigned char *)outrnd->data,
+                       outrnd->length) != 1)
+        goto done;
+
+    ret = 0;
+done:
+    if (ret)
+        zap(outrnd->data, outrnd->length);
+    EVP_KDF_CTX_free(ctx);
+    return ret;
+}
+
+static krb5_error_code
+openssl_krb5kdf(const struct krb5_enc_provider *enc, krb5_key inkey,
+                krb5_data *outrnd, const krb5_data *in_constant)
+{
+    krb5_error_code ret = KRB5_CRYPTO_INTERNAL;
+    EVP_KDF_CTX *ctx = NULL;
+    const EVP_CIPHER *cipher;
+
+    if (inkey->keyblock.length != enc->keylength ||
+        outrnd->length != enc->keybytes) {
+        return KRB5_CRYPTO_INTERNAL;
+    }
+
+    if (enc->encrypt == krb5int_aes_encrypt && enc->keylength == 16)
+        cipher = EVP_aes_128_cbc();
+    else if (enc->encrypt == krb5int_aes_encrypt && enc->keylength == 32)
+        cipher = EVP_aes_256_cbc();
+    else if (enc->keylength == 24)
+        cipher = EVP_des_ede3_cbc();
+    else
+        goto done;
+
+    ctx = EVP_KDF_CTX_new_id(EVP_KDF_KRB5KDF);
+    if (ctx == NULL)
+        goto done;
+
+    if (EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_CIPHER, cipher) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KEY, inkey->keyblock.contents,
+                     inkey->keyblock.length) != 1 ||
+        EVP_KDF_ctrl(ctx, EVP_KDF_CTRL_SET_KRB5KDF_CONSTANT,
+                     in_constant->data, in_constant->length) != 1 ||
+        EVP_KDF_derive(ctx, (unsigned char *)outrnd->data,
+                       outrnd->length) != 1)
+        goto done;
+
+    ret = 0;
+done:
+    if (ret)
+        zap(outrnd->data, outrnd->length);
+    EVP_KDF_CTX_free(ctx);
+    return ret;
+}
+
+#else /* OSSL_KDFS */
+
+/*
+ * NIST SP800-108 KDF in counter mode (section 5.1).
+ * Parameters:
+ *   - HMAC (with hash as the hash provider) is the PRF.
+ *   - A block counter of four bytes is used.
+ *   - Four bytes are used to encode the output length in the PRF input.
+ *
+ * There are no uses requiring more than a single PRF invocation.
+ */
+static krb5_error_code
+builtin_sp800_108_counter_hmac(const struct krb5_hash_provider *hash,
+                               krb5_key inkey, krb5_data *outrnd,
+                               const krb5_data *label,
+                               const krb5_data *context)
+{
+    krb5_crypto_iov iov[5];
     krb5_error_code ret;
-    krb5_data block = empty_data();
+    krb5_data prf;
+    unsigned char ibuf[4], lbuf[4];
 
-    blocksize = enc->block_size;
-    keybytes = enc->keybytes;
-
-    if (blocksize == 1)
-        return KRB5_BAD_ENCTYPE;
-    if (inkey->keyblock.length != enc->keylength || outrnd->length != keybytes)
+    if (hash == NULL || outrnd->length > hash->hashsize)
         return KRB5_CRYPTO_INTERNAL;
 
     /* Allocate encryption data buffer. */
-    ret = alloc_data(&block, blocksize);
+    ret = alloc_data(&prf, hash->hashsize);
     if (ret)
         return ret;
 
-    /* Initialize the input block. */
-    if (in_constant->length == blocksize) {
-        memcpy(block.data, in_constant->data, blocksize);
-    } else {
-        krb5int_nfold(in_constant->length * 8,
-                      (unsigned char *) in_constant->data,
-                      blocksize * 8, (unsigned char *) block.data);
-    }
+    /* [i]2: four-byte big-endian binary string giving the block counter (1) */
+    iov[0].flags = KRB5_CRYPTO_TYPE_DATA;
+    iov[0].data = make_data(ibuf, sizeof(ibuf));
+    store_32_be(1, ibuf);
+    /* Label */
+    iov[1].flags = KRB5_CRYPTO_TYPE_DATA;
+    iov[1].data = *label;
+    /* 0x00: separator byte */
+    iov[2].flags = KRB5_CRYPTO_TYPE_DATA;
+    iov[2].data = make_data("", 1);
+    /* Context */
+    iov[3].flags = KRB5_CRYPTO_TYPE_DATA;
+    iov[3].data = *context;
+    /* [L]2: four-byte big-endian binary string giving the output length */
+    iov[4].flags = KRB5_CRYPTO_TYPE_DATA;
+    iov[4].data = make_data(lbuf, sizeof(lbuf));
+    store_32_be(outrnd->length * 8, lbuf);
 
-    /* Loop encrypting the blocks until enough key bytes are generated. */
-    n = 0;
-    while (n < keybytes) {
-        ret = encrypt_block(enc, inkey, &block);
-        if (ret)
-            goto cleanup;
-
-        if ((keybytes - n) <= blocksize) {
-            memcpy(outrnd->data + n, block.data, (keybytes - n));
-            break;
-        }
-
-        memcpy(outrnd->data + n, block.data, blocksize);
-        n += blocksize;
-    }
-
-cleanup:
-    zapfree(block.data, blocksize);
+    ret = krb5int_hmac(hash, inkey, iov, 5, &prf);
+    if (!ret)
+        memcpy(outrnd->data, prf.data, outrnd->length);
+    zapfree(prf.data, prf.length);
     return ret;
 }
 
@@ -139,9 +284,9 @@ cleanup:
  *   - Four bytes are used to encode the output length in the PRF input.
  */
 static krb5_error_code
-derive_random_sp800_108_feedback_cmac(const struct krb5_enc_provider *enc,
-                                      krb5_key inkey, krb5_data *outrnd,
-                                      const krb5_data *in_constant)
+builtin_sp800_108_feedback_cmac(const struct krb5_enc_provider *enc,
+                                krb5_key inkey, krb5_data *outrnd,
+                                const krb5_data *in_constant)
 {
     size_t blocksize, keybytes, n;
     krb5_crypto_iov iov[6];
@@ -204,56 +349,94 @@ cleanup:
     return ret;
 }
 
-/*
- * NIST SP800-108 KDF in counter mode (section 5.1).
- * Parameters:
- *   - HMAC (with hash as the hash provider) is the PRF.
- *   - A block counter of four bytes is used.
- *   - Four bytes are used to encode the output length in the PRF input.
- *
- * There are no uses requiring more than a single PRF invocation.
- */
+static krb5_error_code
+builtin_derive_random_rfc3961(const struct krb5_enc_provider *enc,
+                              krb5_key inkey, krb5_data *outrnd,
+                              const krb5_data *in_constant)
+{
+    size_t blocksize, keybytes, n;
+    krb5_error_code ret;
+    krb5_data block = empty_data();
+
+    blocksize = enc->block_size;
+    keybytes = enc->keybytes;
+
+    if (blocksize == 1)
+        return KRB5_BAD_ENCTYPE;
+    if (inkey->keyblock.length != enc->keylength || outrnd->length != keybytes)
+        return KRB5_CRYPTO_INTERNAL;
+
+    /* Allocate encryption data buffer. */
+    ret = alloc_data(&block, blocksize);
+    if (ret)
+        return ret;
+
+    /* Initialize the input block. */
+    if (in_constant->length == blocksize) {
+        memcpy(block.data, in_constant->data, blocksize);
+    } else {
+        krb5int_nfold(in_constant->length * 8,
+                      (unsigned char *) in_constant->data,
+                      blocksize * 8, (unsigned char *) block.data);
+    }
+
+    /* Loop encrypting the blocks until enough key bytes are generated. */
+    n = 0;
+    while (n < keybytes) {
+        ret = encrypt_block(enc, inkey, &block);
+        if (ret)
+            goto cleanup;
+
+        if ((keybytes - n) <= blocksize) {
+            memcpy(outrnd->data + n, block.data, (keybytes - n));
+            break;
+        }
+
+        memcpy(outrnd->data + n, block.data, blocksize);
+        n += blocksize;
+    }
+
+cleanup:
+    zapfree(block.data, blocksize);
+    return ret;
+}
+#endif /* OSSL_KDFS */
+
 krb5_error_code
 k5_sp800_108_counter_hmac(const struct krb5_hash_provider *hash,
                           krb5_key inkey, krb5_data *outrnd,
                           const krb5_data *label, const krb5_data *context)
 {
-    krb5_crypto_iov iov[5];
-    krb5_error_code ret;
-    krb5_data prf;
-    unsigned char ibuf[4], lbuf[4];
+#ifdef OSSL_KDFS
+    return openssl_kbdkf_counter_hmac(hash, inkey, outrnd, label, context);
+#else
+    return builtin_sp800_108_counter_hmac(hash, inkey, outrnd, label,
+                                          context);
+#endif
+}
 
-    if (hash == NULL || outrnd->length > hash->hashsize)
-        return KRB5_CRYPTO_INTERNAL;
+static krb5_error_code
+k5_sp800_108_feedback_cmac(const struct krb5_enc_provider *enc,
+                           krb5_key inkey, krb5_data *outrnd,
+                           const krb5_data *in_constant)
+{
+#ifdef OSSL_KDFS
+    return openssl_kbkdf_feedback_cmac(enc, inkey, outrnd, in_constant);
+#else
+    return builtin_sp800_108_feedback_cmac(enc, inkey, outrnd, in_constant);
+#endif
+}
 
-    /* Allocate encryption data buffer. */
-    ret = alloc_data(&prf, hash->hashsize);
-    if (ret)
-        return ret;
-
-    /* [i]2: four-byte big-endian binary string giving the block counter (1) */
-    iov[0].flags = KRB5_CRYPTO_TYPE_DATA;
-    iov[0].data = make_data(ibuf, sizeof(ibuf));
-    store_32_be(1, ibuf);
-    /* Label */
-    iov[1].flags = KRB5_CRYPTO_TYPE_DATA;
-    iov[1].data = *label;
-    /* 0x00: separator byte */
-    iov[2].flags = KRB5_CRYPTO_TYPE_DATA;
-    iov[2].data = make_data("", 1);
-    /* Context */
-    iov[3].flags = KRB5_CRYPTO_TYPE_DATA;
-    iov[3].data = *context;
-    /* [L]2: four-byte big-endian binary string giving the output length */
-    iov[4].flags = KRB5_CRYPTO_TYPE_DATA;
-    iov[4].data = make_data(lbuf, sizeof(lbuf));
-    store_32_be(outrnd->length * 8, lbuf);
-
-    ret = krb5int_hmac(hash, inkey, iov, 5, &prf);
-    if (!ret)
-        memcpy(outrnd->data, prf.data, outrnd->length);
-    zapfree(prf.data, prf.length);
-    return ret;
+static krb5_error_code
+k5_derive_random_rfc3961(const struct krb5_enc_provider *enc,
+                         krb5_key inkey, krb5_data *outrnd,
+                         const krb5_data *in_constant)
+{
+#ifdef OSSL_KDFS
+    return openssl_krb5kdf(enc, inkey, outrnd, in_constant);
+#else
+    return builtin_derive_random_rfc3961(enc, inkey, outrnd, in_constant);
+#endif
 }
 
 krb5_error_code
@@ -266,10 +449,9 @@ krb5int_derive_random(const struct krb5_enc_provider *enc,
 
     switch (alg) {
     case DERIVE_RFC3961:
-        return derive_random_rfc3961(enc, inkey, outrnd, in_constant);
+        return k5_derive_random_rfc3961(enc, inkey, outrnd, in_constant);
     case DERIVE_SP800_108_CMAC:
-        return derive_random_sp800_108_feedback_cmac(enc, inkey, outrnd,
-                                                     in_constant);
+        return k5_sp800_108_feedback_cmac(enc, inkey, outrnd, in_constant);
     case DERIVE_SP800_108_HMAC:
         return k5_sp800_108_counter_hmac(hash, inkey, outrnd, in_constant,
                                          &empty);
