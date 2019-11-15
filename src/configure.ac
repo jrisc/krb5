@@ -282,6 +282,10 @@ AC_SUBST(CRYPTO_IMPL)
 AC_SUBST(CRYPTO_IMPL_CFLAGS)
 AC_SUBST(CRYPTO_IMPL_LIBS)
 
+AC_CHECK_FUNCS(EVP_KDF_CTX_new_id EVP_KDF_ctrl EVP_KDF_derive,
+               AC_DEFINE(OSSL_KDFS, 1, [Define if using OpenSSL KDFs]),
+               AC_MSG_ERROR([backported OpenSSL KDFs not found]))
+
 AC_ARG_WITH([prng-alg],
 AC_HELP_STRING([--with-prng-alg=ALG], [use specified PRNG algorithm. @<:@fortuna@:>@]),
 [PRNG_ALG=$withval
