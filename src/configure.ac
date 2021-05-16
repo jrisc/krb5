@@ -284,6 +284,7 @@ AC_SUBST(CRYPTO_IMPL_LIBS)
 
 if test "$CRYPTO_IMPL" = openssl; then
    AC_CHECK_FUNCS(EVP_KDF_fetch)
+   AC_CHECK_FUNCS(OSSL_PROVIDER_load)
 fi
 
 AC_ARG_WITH([prng-alg],

@@ -44,6 +44,13 @@
 #include <openssl/params.h>
 #endif
 
+#ifdef HAVE_OSSL_PROVIDER_LOAD
+#include <openssl/provider.h>
+
+static OSSL_PROVIDER *legacy_provider = NULL;
+static OSSL_PROVIDER *default_provider = NULL;
+#endif
+
 static krb5_error_code pkinit_init_pkinit_oids(pkinit_plg_crypto_context );
 static void pkinit_fini_pkinit_oids(pkinit_plg_crypto_context );
 
@@ -2937,12 +2944,32 @@ cleanup:
     return retval;
 }
 
+/* pkinit_openssl_init() and unload_providers() are largely duplicated from
+ * lib/crypto/openssl/init.c - see explanations there. */
+static void
+unload_providers(void)
+{
+    if (default_provider != NULL)
+        (void)OSSL_PROVIDER_unload(default_provider);
+    if (legacy_provider != NULL)
+        (void)OSSL_PROVIDER_unload(legacy_provider);
+    default_provider = NULL;
+    legacy_provider = NULL;
+}
+
 int
 pkinit_openssl_init()
 {
-    /* Initialize OpenSSL. */
-    ERR_load_crypto_strings();
-    OpenSSL_add_all_algorithms();
+#ifdef HAVE_OSSL_PROVIDER_LOAD
+    legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+    default_provider = OSSL_PROVIDER_load(NULL, "default");
+
+    if (legacy_provider == NULL || default_provider == NULL)
+        abort();
+
+    atexit(unload_providers);
+#endif
+
     return 0;
 }
 
