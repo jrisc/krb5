@@ -26,11 +26,64 @@
 
 #include "crypto_int.h"
 
+#ifdef HAVE_OSSL_PROVIDER_LOAD
+
+/*
+ * Starting in OpenSSL 3, algorithms are grouped into containers called
+ * "providers", not all of which are loaded by default.  At time of writing,
+ * we need MD4 and RC4 from the legacy provider.  Oddly, 3DES is not in
+ * legacy.
+ */
+
+#include <openssl/provider.h>
+
+static OSSL_PROVIDER *legacy_provider = NULL;
+static OSSL_PROVIDER *default_provider = NULL;
+
+static void
+unload_providers(void)
+{
+    if (default_provider != NULL)
+        (void)OSSL_PROVIDER_unload(default_provider);
+    if (legacy_provider != NULL)
+        (void)OSSL_PROVIDER_unload(legacy_provider);
+    default_provider = NULL;
+    legacy_provider = NULL;
+}
+
+int
+krb5int_crypto_impl_init(void)
+{
+    legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+    default_provider = OSSL_PROVIDER_load(NULL, "default");
+
+    /*
+     * Someone might build openssl without the legacy provider.  They will
+     * have a bad time, but some things will still work.  I don't know think
+     * this configuration is worth supporting.
+     */
+    if (legacy_provider == NULL || default_provider == NULL)
+        abort();
+
+    /*
+     * If we attempt to do this with our normal LIBFINIFUNC logic (DT_FINI),
+     * OpenSSL will have cleaned itself up by the time we're invoked.  OpenSSL
+     * registers its cleanup (OPENSSL_cleanup) with atexit() - do the same and
+     * we'll be higher on the stack.
+     */
+    atexit(unload_providers);
+    return 0;
+}
+
+#else /* !HAVE_OSSL_PROVIDER_LOAD */
+
 int
 krb5int_crypto_impl_init(void)
 {
     return 0;
 }
+
+#endif
 
 void
 krb5int_crypto_impl_cleanup(void)

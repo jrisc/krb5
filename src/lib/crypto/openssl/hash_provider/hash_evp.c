@@ -41,6 +41,11 @@ hash_evp(const EVP_MD *type, const krb5_crypto_iov *data, size_t num_data,
     const krb5_data *d;
     size_t i;
     int ok;
+    krb5_error_code ret;
+
+    ret = krb5int_crypto_init();
+    if (ret)
+        return ret;
 
     if (output->length != (unsigned int)EVP_MD_size(type))
         return KRB5_CRYPTO_INTERNAL;

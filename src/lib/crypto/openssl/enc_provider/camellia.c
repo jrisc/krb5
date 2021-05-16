@@ -92,6 +92,10 @@ cbc_enc(krb5_key key, const krb5_data *ivec, krb5_crypto_iov *data,
     EVP_CIPHER_CTX  *ctx;
     struct iov_cursor cursor;
 
+    ret = krb5int_crypto_init();
+    if (ret)
+        return ret;
+
     ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL)
         return ENOMEM;
@@ -125,6 +129,10 @@ cbc_decr(krb5_key key, const krb5_data *ivec, krb5_crypto_iov *data,
     unsigned char    iblock[BLOCK_SIZE], oblock[BLOCK_SIZE];
     EVP_CIPHER_CTX   *ctx;
     struct iov_cursor cursor;
+
+    ret = krb5int_crypto_init();
+    if (ret)
+        return ret;
 
     ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL)
@@ -160,6 +168,10 @@ cts_encr(krb5_key key, const krb5_data *ivec, krb5_crypto_iov *data,
     unsigned char          iv_cts[IV_CTS_BUF_SIZE];
     struct iov_cursor      cursor;
     CAMELLIA_KEY           enck;
+
+    ret = krb5int_crypto_init();
+    if (ret)
+        return ret;
 
     memset(iv_cts,0,sizeof(iv_cts));
     if (ivec && ivec->data){
@@ -213,6 +225,10 @@ cts_decr(krb5_key key, const krb5_data *ivec, krb5_crypto_iov *data,
     unsigned char          iv_cts[IV_CTS_BUF_SIZE];
     struct iov_cursor      cursor;
     CAMELLIA_KEY           deck;
+
+    ret = krb5int_crypto_init();
+    if (ret)
+        return ret;
 
     memset(iv_cts,0,sizeof(iv_cts));
     if (ivec && ivec->data){
