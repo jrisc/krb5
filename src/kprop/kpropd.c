@@ -55,6 +55,7 @@
 #include "com_err.h"
 #include "fake-addrinfo.h"
 
+#include <inttypes.h>
 #include <locale.h>
 #include <ctype.h>
 #include <sys/file.h>
@@ -1358,9 +1359,10 @@ static void
 recv_database(krb5_context context, int fd, int database_fd,
               krb5_data *confmsg)
 {
-    krb5_ui_4 database_size, received_size;
+    uint64_t database_size, received_size;
     int n;
     char buf[1024];
+    char dbsize_buf[KPROP_DBSIZE_MAX_BUFSIZ];
     krb5_data inbuf, outbuf;
     krb5_error_code retval;
 
@@ -1382,10 +1384,17 @@ recv_database(krb5_context context, int fd, int database_fd,
                 _("while decoding database size from client"));
         exit(1);
     }
-    memcpy(&database_size, outbuf.data, sizeof(database_size));
+
+    retval = decode_database_size(&outbuf, &database_size);
+    if (retval) {
+        send_error(context, fd, retval, "malformed database size message");
+        com_err(progname, retval,
+                _("malformed database size message from client"));
+        exit(1);
+    }
+
     krb5_free_data_contents(context, &inbuf);
     krb5_free_data_contents(context, &outbuf);
-    database_size = ntohl(database_size);
 
     /* Initialize the initial vector. */
     retval = krb5_auth_con_initivector(context, auth_context);
@@ -1405,7 +1414,7 @@ recv_database(krb5_context context, int fd, int database_fd,
         retval = krb5_read_message(context, &fd, &inbuf);
         if (retval) {
             snprintf(buf, sizeof(buf),
-                     "while reading database block starting at offset %d",
+                     "while reading database block starting at offset %"PRIu64,
                      received_size);
             com_err(progname, retval, "%s", buf);
             send_error(context, fd, retval, buf);
@@ -1416,8 +1425,8 @@ recv_database(krb5_context context, int fd, int database_fd,
         retval = krb5_rd_priv(context, auth_context, &inbuf, &outbuf, NULL);
         if (retval) {
             snprintf(buf, sizeof(buf),
-                     "while decoding database block starting at offset %d",
-                     received_size);
+                     "while decoding database block starting at offset %"
+                     PRIu64, received_size);
             com_err(progname, retval, "%s", buf);
             send_error(context, fd, retval, buf);
             krb5_free_data_contents(context, &inbuf);
@@ -1427,13 +1436,13 @@ recv_database(krb5_context context, int fd, int database_fd,
         krb5_free_data_contents(context, &inbuf);
         if (n < 0) {
             snprintf(buf, sizeof(buf),
-                     "while writing database block starting at offset %d",
+                     "while writing database block starting at offset %"PRIu64,
                      received_size);
             send_error(context, fd, errno, buf);
         } else if ((unsigned int)n != outbuf.length) {
             snprintf(buf, sizeof(buf),
                      "incomplete write while writing database block starting "
-                     "at \noffset %d (%d written, %d expected)",
+                     "at \noffset %"PRIu64" (%d written, %d expected)",
                      received_size, n, outbuf.length);
             send_error(context, fd, KRB5KRB_ERR_GENERIC, buf);
         }
@@ -1444,7 +1453,8 @@ recv_database(krb5_context context, int fd, int database_fd,
     /* OK, we've seen the entire file.  Did we get too many bytes? */
     if (received_size > database_size) {
         snprintf(buf, sizeof(buf),
-                 "Received %d bytes, expected %d bytes for database file",
+                 "Received %"PRIu64" bytes, expected %"PRIu64
+                 " bytes for database file",
                  received_size, database_size);
         send_error(context, fd, KRB5KRB_ERR_GENERIC, buf);
     }
@@ -1454,9 +1464,8 @@ recv_database(krb5_context context, int fd, int database_fd,
 
     /* Create message acknowledging number of bytes received, but
      * don't send it until kdb5_util returns successfully. */
-    database_size = htonl(database_size);
-    inbuf.data = (char *)&database_size;
-    inbuf.length = sizeof(database_size);
+    inbuf = make_data(dbsize_buf, sizeof(dbsize_buf));
+    encode_database_size(database_size, &inbuf);
     retval = krb5_mk_safe(context,auth_context,&inbuf,confmsg,NULL);
     if (retval) {
         com_err(progname, retval, "while encoding # of received bytes");
