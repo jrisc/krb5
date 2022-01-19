@@ -92,3 +92,31 @@ sn2princ_realm(krb5_context context, const char *hostname, const char *sname,
     *princ_out = princ;
     return 0;
 }
+
+void
+encode_database_size(uint64_t size, krb5_data *buf)
+{
+    if (size != 0 && size <= UINT32_MAX) {
+        /* Dumped KDC size fits on 32 bits */
+        store_32_be((krb5_ui_4)size, buf->data);
+        buf->length = sizeof(krb5_ui_4);
+    } else {
+        /* Set 32 first bits to 0 (indicating 64 bits encoding) */
+        store_32_be(0, buf->data);
+        /* Encode size on 64 bits */
+        store_64_be(size, buf->data + sizeof(krb5_ui_4));
+        buf->length = sizeof(krb5_ui_4) + sizeof(uint64_t);
+    }
+}
+
+uint64_t
+decode_database_size(const krb5_data *buf)
+{
+    uint64_t size = (uint64_t)load_32_be(buf->data);
+
+    if (size == 0)
+        /* Actual size stored on 64 next bits */
+        size = load_64_be(buf->data + sizeof(krb5_ui_4));
+
+    return size;
+}

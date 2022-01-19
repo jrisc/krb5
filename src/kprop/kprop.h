@@ -32,6 +32,7 @@
 #define KPROP_PROT_VERSION "kprop5_01"
 
 #define KPROP_BUFSIZ 32768
+#define KPROP_DBSIZE_BUFSIZ (sizeof(krb5_ui_4) + sizeof(uint64_t))
 
 /* pathnames are in osconf.h, included via k5-int.h */
 
@@ -41,3 +42,21 @@ int sockaddr2krbaddr(krb5_context context, int family, struct sockaddr *sa,
 krb5_error_code
 sn2princ_realm(krb5_context context, const char *hostname, const char *sname,
                const char *realm, krb5_principal *princ_out);
+
+/*
+ * Write database size on 4 bytes, or if 0 or larger than 32^2-1 (4 GiB - 1 B),
+ * set 4 first bytes to 0 and write size on the 8 next bytes.
+ *
+ * This behavior is meant to ensure compatibility with previous versions.
+ *
+ * buf->data must be allocated with size of at least KPROP_DBSIZE_BUFSIZ
+ */
+void encode_database_size(uint64_t size, krb5_data *buf);
+
+/*
+ * Read database size from 4 first bytes. If the value is 0, read the actual
+ * size from the 8 next bytes.
+ *
+ * This behavior is meant to ensure compatibility with previous versions.
+ */
+uint64_t decode_database_size(const krb5_data *buf);
