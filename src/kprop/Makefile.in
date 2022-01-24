@@ -12,8 +12,13 @@ SERVEROBJS= kpropd.o kpropd_rpc.o kprop_util.o
 LOGSRCS= $(srcdir)/kproplog.c
 LOGOBJS= kproplog.o
 
-SRCS= $(CLIENTSRCS) $(SERVERSRCS) $(LOGSRCS)
+T_DBSIZE_OBJS= t_dbsize.o kprop_util.o
 
+TESTPROGS= t_dbsize
+TESTSRCS= $(patsubst %,%.c,$(TESTPROGS))
+TESTS= $(patsubst %,test-%,$(TESTPROGS))
+
+SRCS= $(CLIENTSRCS) $(SERVERSRCS) $(LOGSRCS) $(TESTSRCS)
 
 kprop: $(CLIENTOBJS) $(KRB5_BASE_DEPLIBS)
 	$(CC_LINK) -o kprop $(CLIENTOBJS) $(KRB5_BASE_LIBS) @LIBUTIL@
@@ -30,6 +35,14 @@ install:
 		$(DESTDIR)$(SERVER_BINDIR)/`echo $$f|sed '$(transform)'`; \
 	done
 
+t_dbsize: $(T_DBSIZE_OBJS) $(KRB5_BASE_DEPLIBS)
+	$(CC_LINK) -o $@ $^
+
+$(TESTS): test-%: %
+	$(RUN_TEST) ./$^
+
+check-unix: $(TESTS)
+
 clean:
 	$(RM) $(CLIENTOBJS) $(SERVEROBJS) $(LOGOBJS)
-	$(RM) kprop kpropd kproplog
+	$(RM) kprop kpropd kproplog $(TESTPROGS)

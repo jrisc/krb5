@@ -420,6 +420,7 @@ local.properties
 /src/kprop/kprop
 /src/kprop/kpropd
 /src/kprop/kproplog
+/src/kprop/t_dbsize
 
 /src/tests/adata
 /src/tests/au.log
