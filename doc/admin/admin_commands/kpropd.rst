@@ -66,6 +66,9 @@ keytab file.
 :ref:`kproplog(8)` can be used to force full replication when iprop is
 enabled.
 
+A kprop release prior to 1.20 will fail to send or receive a larger
+than 4 GiB dumped KDC database.
+
 
 OPTIONS
 --------

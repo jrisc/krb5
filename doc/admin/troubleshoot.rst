@@ -57,6 +57,8 @@ Errors seen by admins
 
 #. :ref:`kprop_sendauth_exchange`
 
+#. :ref:`kprop_con_reset`
+
 .. _prop_failed_end:
 
 -----
@@ -133,3 +135,25 @@ Make sure that:
    location on the replica.
 #. The replica has a keytab file in the default location containing a
    ``host`` principal for the replica's hostname.
+
+.. _kprop_con_reset:
+
+kprop: Connection reset by peer while sending database block starting at ...
+............................................................................
+
+Prior to 1.20 release, kprop did not support transmitting a dumped KDC
+database larger or equal to 4 GiB. Such an error might be caused by
+this fact.
+
+On :ref:`kpropd(8)` side, if debug mode is enabled, this error will
+probably be reported as::
+
+    kdb5_util: error processing line ... of /var/kerberos/krb5kdc/from_master
+
+If :ref:`kprop(8)` is version 1.20 or newer, but the version of kpropd
+is older, kpropd debugging may log this error::
+
+    kdb5_util: can't read dump header in /var/kerberos/krb5kdc/from_master
+
+This is due to the fact kpropd perceives 4 GiB or larger dumped KDC
+database files as empty.

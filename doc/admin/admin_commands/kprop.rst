@@ -23,6 +23,9 @@ from the primary Kerberos server to a replica Kerberos server, which is
 specified by *replica_host*.  The dump file must be created by
 :ref:`kdb5_util(8)`.
 
+A kprop release prior to 1.20 will fail to send or receive a larger
+than 4 GiB dumped KDC database.
+
 
 OPTIONS
 -------
