@@ -167,7 +167,8 @@ krad_attrset_copy(const krad_attrset *set, krad_attrset **copy)
 krb5_error_code
 kr_attrset_encode(const krad_attrset *set, const char *secret,
                   const unsigned char *auth,
-                  unsigned char outbuf[MAX_ATTRSETSIZE], size_t *outlen)
+                  unsigned char outbuf[MAX_ATTRSETSIZE], size_t *outlen,
+                  krb5_boolean *is_fips)
 {
     unsigned char buffer[MAX_ATTRSIZE];
     krb5_error_code retval;
@@ -181,7 +182,7 @@ kr_attrset_encode(const krad_attrset *set, const char *secret,
 
     K5_TAILQ_FOREACH(a, &set->list, list) {
         retval = kr_attr_encode(set->ctx, secret, auth, a->type, &a->attr,
-                                buffer, &attrlen);
+                                buffer, &attrlen, is_fips);
         if (retval != 0)
             return retval;
 
