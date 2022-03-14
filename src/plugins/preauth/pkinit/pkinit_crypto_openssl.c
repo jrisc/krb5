@@ -255,7 +255,12 @@ static void compat_dh_get0_key(const DH *dh, const BIGNUM **pub,
 
 /* Return true if the cert x includes a key usage which doesn't include u. */
 #define ku_reject(c, u) (!(X509_get_key_usage(c) & (u)))
+#endif
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+extern int
+ossl_ctx_legacy_digest_signatures_allowed_set(OSSL_LIB_CTX *libctx, int allow,
+                                              int loadconfig);
 #endif
 
 static struct pkcs11_errstrings {
@@ -539,6 +544,31 @@ oerr_cert(krb5_context context, krb5_error_code code, X509_STORE_CTX *certctx,
     return oerr(context, code, _("%s (depth %d): %s"), msg, depth, errstr);
 }
 
+static int
+init_ossl_sha1_ctx(pkinit_plg_crypto_context *ctx)
+{
+    ctx->sha1_ctx = NULL;
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    /*
+     * Allow verification of SHA-1 signatures for backward compatibility if not
+     * in FIPS mode
+     */
+    if (!FIPS_mode()) {
+        ctx->sha1_ctx = OSSL_LIB_CTX_new();
+        if (!ctx->sha1_ctx)
+            return ENOMEM;
+        if (!ossl_ctx_legacy_digest_signatures_allowed_set(ctx->sha1_ctx, 1,
+                                                           0)) {
+            OSSL_LIB_CTX_free(ctx->sha1_ctx);
+            return KRB5_CRYPTO_INTERNAL;
+        }
+    }
+#endif
+
+    return 0;
+}
+
 krb5_error_code
 pkinit_init_plg_crypto(pkinit_plg_crypto_context *cryptoctx)
 {
@@ -562,6 +592,10 @@ pkinit_init_plg_crypto(pkinit_plg_crypto_context *cryptoctx)
     if (retval)
         goto out;
 
+    retval = init_ossl_sha1_ctx(ctx);
+    if (retval)
+        goto out;
+
     *cryptoctx = ctx;
 
 out:
@@ -580,6 +614,8 @@ pkinit_fini_plg_crypto(pkinit_plg_crypto_context cryptoctx)
         return;
     pkinit_fini_pkinit_oids(cryptoctx);
     pkinit_fini_dh_params(cryptoctx);
+    if (ctx->sha1_ctx)
+        OSSL_LIB_CTX_free(cryptoctx->sha1_ctx);
     free(cryptoctx);
 }
 
@@ -1240,7 +1276,7 @@ cms_signeddata_create(krb5_context context,
         /* will not fill-out EVP_PKEY because it's on the smartcard */
 
         /* Set digest algs */
-        p7si->digest_alg->algorithm = OBJ_nid2obj(NID_sha1);
+        p7si->digest_alg->algorithm = OBJ_nid2obj(NID_sha256);
 
         if (p7si->digest_alg->parameter != NULL)
             ASN1_TYPE_free(p7si->digest_alg->parameter);
@@ -1251,17 +1287,17 @@ cms_signeddata_create(krb5_context context,
         /* Set sig algs */
         if (p7si->digest_enc_alg->parameter != NULL)
             ASN1_TYPE_free(p7si->digest_enc_alg->parameter);
-        p7si->digest_enc_alg->algorithm = OBJ_nid2obj(NID_sha1WithRSAEncryption);
+        p7si->digest_enc_alg->algorithm = OBJ_nid2obj(NID_sha256WithRSAEncryption);
         if (!(p7si->digest_enc_alg->parameter = ASN1_TYPE_new()))
             goto cleanup;
         p7si->digest_enc_alg->parameter->type = V_ASN1_NULL;
 
         /* add signed attributes */
-        /* compute sha1 digest over the EncapsulatedContentInfo */
+        /* compute sha256 digest over the EncapsulatedContentInfo */
         ctx = EVP_MD_CTX_new();
         if (ctx == NULL)
             goto cleanup;
-        EVP_DigestInit_ex(ctx, EVP_sha1(), NULL);
+        EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
         EVP_DigestUpdate(ctx, data, data_len);
         md_tmp = EVP_MD_CTX_md(ctx);
         EVP_DigestFinal_ex(ctx, md_data, &md_len);
@@ -1289,9 +1325,10 @@ cms_signeddata_create(krb5_context context,
             goto cleanup2;
 
 #ifndef WITHOUT_PKCS11
-        /* Some tokens can only do RSAEncryption without sha1 hash */
-        /* to compute sha1WithRSAEncryption, encode the algorithm ID for the hash
-         * function and the hash value into an ASN.1 value of type DigestInfo
+        /* Some tokens can only do RSAEncryption without sha256 hash */
+        /* to compute sha256WithRSAEncryption, encode the algorithm ID for the
+         * hash function and the hash value into an ASN.1 value of type
+         * DigestInfo
          * DigestInfo::=SEQUENCE {
          *  digestAlgorithm  AlgorithmIdentifier,
          *  digest OCTET STRING }
@@ -1310,7 +1347,7 @@ cms_signeddata_create(krb5_context context,
             alg = X509_ALGOR_new();
             if (alg == NULL)
                 goto cleanup2;
-            X509_ALGOR_set0(alg, OBJ_nid2obj(NID_sha1), V_ASN1_NULL, NULL);
+            X509_ALGOR_set0(alg, OBJ_nid2obj(NID_sha256), V_ASN1_NULL, NULL);
             alg_len = i2d_X509_ALGOR(alg, NULL);
 
             digest = ASN1_OCTET_STRING_new();
@@ -1339,7 +1376,7 @@ cms_signeddata_create(krb5_context context,
 #endif
         {
             pkiDebug("mech = %s\n",
-                     id_cryptoctx->pkcs11_method == 1 ? "CKM_SHA1_RSA_PKCS" : "FS");
+                     id_cryptoctx->pkcs11_method == 1 ? "CKM_SHA256_RSA_PKCS" : "FS");
             retval = pkinit_sign_data(context, id_cryptoctx, abuf, alen,
                                       &sig, &sig_len);
         }
@@ -1438,7 +1475,7 @@ cms_signeddata_verify(krb5_context context,
      * to success with significant security consequences.
      */
     krb5_error_code retval = KRB5KDC_ERR_PREAUTH_FAILED;
-    CMS_ContentInfo *cms = NULL;
+    CMS_ContentInfo *ctx_cms = NULL, *cms = NULL;
     BIO *out = NULL;
     int flags = CMS_NO_SIGNER_CERT_VERIFY;
     int valid_oid = 0;
@@ -1473,8 +1510,17 @@ cms_signeddata_verify(krb5_context context,
     if (oid == NULL)
         goto cleanup;
 
+    if (plgctx->sha1_ctx) {
+        ctx_cms = CMS_ContentInfo_new_ex(plgctx->sha1_ctx, NULL);
+        if (!ctx_cms) {
+            retval = oerr(context, 0, _("Failed to initialize CMS context"));
+            goto cleanup;
+        }
+    }
+
     /* decode received CMS message */
-    if ((cms = d2i_CMS_ContentInfo(NULL, &p, (int)signed_data_len)) == NULL) {
+    if ((cms = d2i_CMS_ContentInfo((ctx_cms ? &ctx_cms : NULL), &p,
+                                   (int)signed_data_len)) == NULL) {
         retval = oerr(context, 0, _("Failed to decode CMS message"));
         goto cleanup;
     }
@@ -1784,6 +1830,8 @@ cleanup:
             sk_X509_CRL_free(revoked);
         CMS_ContentInfo_free(cms);
     }
+    if (ctx_cms)
+        CMS_ContentInfo_free(ctx_cms);
     if (verified_chain != NULL)
         sk_X509_pop_free(verified_chain, X509_free);
     if (krb5_verified_chain != NULL)
@@ -4189,7 +4237,7 @@ create_signature(unsigned char **sig, unsigned int *sig_len,
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL)
         return ENOMEM;
-    EVP_SignInit(ctx, EVP_sha1());
+    EVP_SignInit(ctx, EVP_sha256());
     EVP_SignUpdate(ctx, data, data_len);
     *sig_len = EVP_PKEY_size(pkey);
     if ((*sig = malloc(*sig_len)) == NULL)
@@ -4663,10 +4711,10 @@ pkinit_get_certs_pkcs11(krb5_context context,
 
 #ifndef PKINIT_USE_MECH_LIST
     /*
-     * We'd like to use CKM_SHA1_RSA_PKCS for signing if it's available, but
+     * We'd like to use CKM_SHA256_RSA_PKCS for signing if it's available, but
      * many cards seems to be confused about whether they are capable of
      * this or not. The safe thing seems to be to ignore the mechanism list,
-     * always use CKM_RSA_PKCS and calculate the sha1 digest ourselves.
+     * always use CKM_RSA_PKCS and calculate the sha256 digest ourselves.
      */
 
     id_cryptoctx->mech = CKM_RSA_PKCS;
@@ -4694,7 +4742,7 @@ pkinit_get_certs_pkcs11(krb5_context context,
         if (mechp[i] == CKM_RSA_PKCS) {
             /* This seems backwards... */
             id_cryptoctx->mech =
-                (info.flags & CKF_SIGN) ? CKM_SHA1_RSA_PKCS : CKM_RSA_PKCS;
+                (info.flags & CKF_SIGN) ? CKM_SHA256_RSA_PKCS : CKM_RSA_PKCS;
         }
     }
     free(mechp);

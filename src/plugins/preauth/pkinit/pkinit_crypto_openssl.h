@@ -108,6 +108,7 @@ struct _pkinit_plg_crypto_context {
     ASN1_OBJECT *id_pkinit_KPKdc;
     ASN1_OBJECT *id_ms_kp_sc_logon;
     ASN1_OBJECT *id_kp_serverAuth;
+    OSSL_LIB_CTX *sha1_ctx;
 };
 
 struct _pkinit_req_crypto_context {
