@@ -1,4 +1,4 @@
-mydir=tests$(S)dejagnu
+mydir=tests$(S)testsuite
 BUILDTOP=$(REL)..$(S)..
 RUNTEST = @RUNTEST@ $(DEJAFLAGS)
 RUNTESTFLAGS =
@@ -13,7 +13,7 @@ check: check-runtest-@HAVE_RUNTEST@
 
 check-runtest-no:
 	@echo "+++"
-	@echo "+++ WARNING: tests/dejagnu tests not run."
+	@echo "+++ WARNING: tests/testsuite tests not run."
 	@echo "+++ runtest is unavailable."
 	@echo "+++"
 	@echo 'Skipped dejagnu tests: runtest not found' >> $(SKIPTESTS)

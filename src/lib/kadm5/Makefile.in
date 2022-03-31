@@ -1,6 +1,6 @@
 mydir=lib$(S)kadm5
 BUILDTOP=$(REL)..$(S)..
-SUBDIRS = clnt srv unit-test
+SUBDIRS = clnt srv testsuite
 
 ##DOSBUILDTOP = ..\..
 

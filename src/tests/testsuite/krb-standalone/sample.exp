@@ -2,7 +2,7 @@
 # This is a DejaGnu test script.
 # This script tests that sample user-user communication works.
 
-# This mostly just calls procedures in test/dejagnu/config/default.exp.
+# This mostly just calls procedures in test/testsuite/config/default.exp.
 
 if ![info exists KLIST] {
     set KLIST [findfile $objdir/../../clients/klist/klist]

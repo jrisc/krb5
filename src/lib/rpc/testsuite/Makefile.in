@@ -1,4 +1,4 @@
-mydir=lib$(S)rpc$(S)unit-test
+mydir=lib$(S)rpc$(S)testsuite
 BUILDTOP=$(REL)..$(S)..$(S)..
 
 OBJS= client.o rpc_test_clnt.o rpc_test_svc.o server.o

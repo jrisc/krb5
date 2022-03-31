@@ -1497,9 +1497,9 @@ V5_AC_OUTPUT_MAKEFILE(.
 	lib/gssapi lib/gssapi/generic lib/gssapi/krb5 lib/gssapi/spnego
 	lib/gssapi/mechglue
 
-	lib/rpc lib/rpc/unit-test
+	lib/rpc lib/rpc/testsuite
 
-	lib/kadm5 lib/kadm5/clnt lib/kadm5/srv lib/kadm5/unit-test
+	lib/kadm5 lib/kadm5/clnt lib/kadm5/srv lib/kadm5/testsuite
 	lib/krad
 	lib/apputils
 
@@ -1543,5 +1543,5 @@ V5_AC_OUTPUT_MAKEFILE(.
 	appl/gss-sample appl/user_user
 
 	tests tests/asn.1 tests/create tests/hammer tests/verify tests/gssapi
-	tests/dejagnu tests/threads tests/shlib tests/gss-threads tests/misc
+	tests/testsuite tests/threads tests/shlib tests/gss-threads tests/misc
 )

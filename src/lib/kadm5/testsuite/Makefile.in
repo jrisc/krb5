@@ -1,4 +1,4 @@
-mydir=lib$(S)kadm5$(S)unit-test
+mydir=lib$(S)kadm5$(S)testsuite
 BUILDTOP=$(REL)..$(S)..$(S)..
 KDB_DEP_LIB=$(DL_LIB) $(THREAD_LINKOPTS)
 
@@ -61,7 +61,7 @@ runenv.exp: Makefile
 		eval echo "set env\($$i\) \$$$$i"; done > runenv.exp
 
 #
-# The unit-test targets
+# The testsuite targets
 #
 
 check: check-@DO_TEST@
@@ -72,13 +72,13 @@ check-:
 	@echo "+++ Either tcl, runtest, or Perl is unavailable."
 	@echo "+++"
 
-check-ok unit-test: unit-test-client unit-test-server
+check-ok testsuite: testsuite-client testsuite-server
 
-unit-test-client: unit-test-client-setup unit-test-client-body \
-	unit-test-client-cleanup
+testsuite-client: testsuite-client-setup testsuite-client-body \
+	testsuite-client-cleanup
 
-unit-test-server: unit-test-server-setup unit-test-server-body \
-	unit-test-server-cleanup
+testsuite-server: testsuite-server-setup testsuite-server-body \
+	testsuite-server-cleanup
 
 test-randkey: randkey-test
 	$(ENV_SETUP) $(VALGRIND) ./randkey-test
@@ -98,19 +98,19 @@ test-destroy: destroy-test
 test-setkey-client: client-setkey-test
 	$(ENV_SETUP) $(VALGRIND) ./client-setkey-test testkeys admin admin
 
-unit-test-client-setup: runenv.sh
+testsuite-client-setup: runenv.sh
 	$(ENV_SETUP) $(VALGRIND) $(START_SERVERS)
 
-unit-test-client-cleanup:
+testsuite-client-cleanup:
 	$(ENV_SETUP) $(STOP_SERVERS)
 
-unit-test-server-setup: runenv.sh
+testsuite-server-setup: runenv.sh
 	$(ENV_SETUP) $(VALGRIND) $(START_SERVERS_LOCAL)
 
-unit-test-server-cleanup:
+testsuite-server-cleanup:
 	$(ENV_SETUP) $(STOP_SERVERS_LOCAL)
 
-unit-test-client-body: site.exp test-noauth test-destroy test-handle-client \
+testsuite-client-body: site.exp test-noauth test-destroy test-handle-client \
 	test-setkey-client runenv.exp
 	$(ENV_SETUP) $(RUNTEST) --tool api RPC=1 API=$(CLNTTCL) \
 		KINIT=$(BUILDTOP)/clients/kinit/kinit \
@@ -121,7 +121,7 @@ unit-test-client-body: site.exp test-noauth test-destroy test-handle-client \
 	-mv api.log capi.log
 	-mv api.sum capi.sum
 
-unit-test-server-body: site.exp test-handle-server lock-test 
+testsuite-server-body: site.exp test-handle-server lock-test 
 	$(ENV_SETUP) $(RUNTEST) --tool api RPC=0 API=$(SRVTCL) \
 		LOCKTEST=./lock-test \
 		KADMIN_LOCAL=$(BUILDTOP)/kadmin/cli/kadmin.local \
@@ -140,4 +140,4 @@ clean:
 	$(RM) lock-test lock-test.o
 	$(RM) server-iter-test iter-test.o
 	$(RM) server-setkey-test client-setkey-test setkey-test.o
-	$(RM) *.log *.plog *.sum *.psum unit-test-log.* runenv.exp
+	$(RM) *.log *.plog *.sum *.psum testsuite-log.* runenv.exp
