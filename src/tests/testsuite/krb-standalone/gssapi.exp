@@ -2,7 +2,7 @@
 # This is a DejaGnu test script.
 # This script tests that the GSS-API tester functions correctly.
 
-# This mostly just calls procedures in test/dejagnu/config/default.exp.
+# This mostly just calls procedures in test/testsuite/config/default.exp.
 
 if ![info exists KDESTROY] {
     set KDESTROY [findfile $objdir/../../clients/kdestroy/kdestroy]

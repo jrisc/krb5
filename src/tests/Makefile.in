@@ -1,6 +1,6 @@
 mydir=tests
 BUILDTOP=$(REL)..
-SUBDIRS = asn.1 create hammer verify gssapi dejagnu shlib gss-threads misc \
+SUBDIRS = asn.1 create hammer verify gssapi testsuite shlib gss-threads misc \
 	threads softpkcs11
 
 RUN_DB_TEST = $(RUN_SETUP) KRB5_KDC_PROFILE=kdc.conf KRB5_CONFIG=krb5.conf \

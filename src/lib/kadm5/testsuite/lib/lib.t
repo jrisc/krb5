@@ -226,7 +226,7 @@ proc end_dump_compare {name} {
     global  RPC
 
     if { ! $RPC } { 
-#	set file $TOP/admin/lib/unit-test/diff-files/$name
+#	set file $TOP/admin/lib/testsuite/diff-files/$name
 #	exec $env(SIMPLE_DUMP) > /tmp/dump.after
 #	exec $env(COMPARE_DUMP) /tmp/dump.before /tmp/dump.after $file
     }

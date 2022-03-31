@@ -256,7 +256,7 @@ verbose "Test realm is $REALMNAME"
 
 # Find some programs we need.  We use the binaries from the build tree
 # if they exist.  If they do not, then they must be in PATH.  We
-# expect $objdir to be ...tests/dejagnu.
+# expect $objdir to be ...tests/testsuite.
 
 foreach i {
     {KDB5_UTIL $objdir/../../kadmin/dbutil/kdb5_util}

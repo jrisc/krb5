@@ -10,17 +10,17 @@ except:
 
 # Construct a krb5.conf fragment configuring the client to use a local proxy
 # server.
-proxysubjectpem = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs',
+proxysubjectpem = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs',
                                'proxy-subject.pem')
-proxysanpem = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs',
+proxysanpem = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs',
                            'proxy-san.pem')
-proxyidealpem = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs',
+proxyidealpem = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs',
                              'proxy-ideal.pem')
-proxywrongpem = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs',
+proxywrongpem = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs',
                              'proxy-no-match.pem')
-proxybadpem = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs',
+proxybadpem = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs',
                            'proxy-badsig.pem')
-proxyca = os.path.join(srctop, 'tests', 'dejagnu', 'proxy-certs', 'ca.pem')
+proxyca = os.path.join(srctop, 'tests', 'testsuite', 'proxy-certs', 'ca.pem')
 proxyurl = 'https://localhost:$port5/KdcProxy'
 proxyurlupcase = 'https://LocalHost:$port5/KdcProxy'
 proxyurl4 = 'https://127.0.0.1:$port5/KdcProxy'
