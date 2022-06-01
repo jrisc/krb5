@@ -32,19 +32,32 @@
 
 #include "pkinit.h"
 
-/* statically declare OID constants for all three algorithms */
-static char sha1_oid[8] = { 0x2B, 0x06, 0x01, 0x05, 0x02, 0x03, 0x06, 0x01};
+/* statically declare OID constants for all four algorithms */
+/* sha1 1.3.6.1.5.2.3.6.1 */
+static char sha1_oid[8] = { 0x2B, 0x06, 0x01, 0x05, 0x02, 0x03, 0x06, 0x01 };
+/* sha256 1.3.6.1.5.2.3.6.2 */
 static char sha256_oid[8] = { 0x2B, 0x06, 0x01, 0x05, 0x02, 0x03, 0x06, 0x02 };
+/* sha512 1.3.6.1.5.2.3.6.3 */
 static char sha512_oid[8] = { 0x2B, 0x06, 0x01, 0x05, 0x02, 0x03, 0x06, 0x03 };
+/* sha256WithRSAEncryption 1.2.840.113549.1.1.11 */
+static char sha256WithRSAEncr_oid[9] =
+    { 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b };
 
 const krb5_data sha1_id = { KV5M_DATA, sizeof(sha1_oid), sha1_oid };
 const krb5_data sha256_id = { KV5M_DATA, sizeof(sha256_oid), sha256_oid };
 const krb5_data sha512_id = { KV5M_DATA, sizeof(sha512_oid), sha512_oid };
+const krb5_data sha256WithRSAEncr_id =
+    { KV5M_DATA, sizeof(sha256WithRSAEncr_oid), sha256WithRSAEncr_oid };
 
 krb5_data const * const supported_kdf_alg_ids[] = {
     &sha256_id,
     &sha1_id,
     &sha512_id,
+    NULL
+};
+
+krb5_data const * const supported_cms_signature_ids[] = {
+    &sha256WithRSAEncr_id,
     NULL
 };
 
