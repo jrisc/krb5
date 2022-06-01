@@ -5583,6 +5583,45 @@ cleanup:
 }
 
 krb5_error_code
+create_krb5_supportedCMSTypes(krb5_context context,
+                              pkinit_plg_crypto_context plg_cryptoctx,
+                              pkinit_req_crypto_context req_cryptoctx,
+                              pkinit_identity_crypto_context id_cryptoctx,
+                              krb5_algorithm_identifier ***algs_out)
+{
+    krb5_error_code ret;
+    krb5_algorithm_identifier **algs = NULL;
+    size_t i, count;
+
+    *algs_out = NULL;
+
+    /* Count supported OIDs and allocate list (including null terminator). */
+    for (count = 0; supported_cms_algs[count] != NULL; count++);
+    algs = k5calloc(count + 1, sizeof(*algs), &ret);
+    if (algs == NULL)
+        goto cleanup;
+
+    /* Add an algorithm identifier for each OID, with no parameters. */
+    for (i = 0; i < count; i++) {
+        algs[i] = k5alloc(sizeof(*algs[i]), &ret);
+        if (algs[i] == NULL)
+            goto cleanup;
+        ret = krb5int_copy_data_contents(context, supported_cms_algs[i],
+                                         &algs[i]->algorithm);
+        if (ret)
+            goto cleanup;
+        algs[i]->parameters = empty_data();
+    }
+
+    *algs_out = algs;
+    algs = NULL;
+
+cleanup:
+    free_krb5_algorithm_identifiers(&algs);
+    return ret;
+}
+
+krb5_error_code
 create_krb5_trustedCertifiers(krb5_context context,
                               pkinit_plg_crypto_context plg_cryptoctx,
                               pkinit_req_crypto_context req_cryptoctx,

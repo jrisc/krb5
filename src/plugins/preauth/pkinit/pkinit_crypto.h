@@ -382,6 +382,18 @@ krb5_error_code server_process_dh
 
 /*
  * this functions takes in crypto specific representation of
+ * supportedCMSTypes and creates a list of
+ * krb5_algorithm_identifier
+ */
+krb5_error_code create_krb5_supportedCMSTypes
+       (krb5_context context,                          /* IN */
+       pkinit_plg_crypto_context plg_cryptoctx,        /* IN */
+       pkinit_req_crypto_context req_cryptoctx,        /* IN */
+       pkinit_identity_crypto_context id_cryptoctx,    /* IN */
+       krb5_algorithm_identifier ***supportedCMSTypes); /* OUT */
+
+/*
+ * this functions takes in crypto specific representation of
  * trustedCertifiers and creates a list of
  * krb5_external_principal_identifier
  */
@@ -616,6 +628,10 @@ extern const size_t  krb5_pkinit_sha512_oid_len;
  * the order in which the server will pick.
  */
 extern krb5_data const * const supported_kdf_alg_ids[];
+
+/* CMS signature algorithms supported by this implementation, in order of
+ * decreasing preference. */
+extern krb5_data const * const supported_cms_algs[];
 
 krb5_error_code
 crypto_encode_der_cert(krb5_context context, pkinit_req_crypto_context reqctx,

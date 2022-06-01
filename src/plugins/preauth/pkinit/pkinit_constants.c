@@ -57,3 +57,27 @@ krb5_data const * const supported_kdf_alg_ids[] = {
     &sha512_id,
     NULL
 };
+
+/* RFC 4055 sha256WithRSAEncryption: iso(1) member-body(2) us(840)
+ * rsadsi(113549) pkcs(1) 1 11 */
+static char sha256WithRSAEncr_oid[9] = {
+    0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b
+};
+/* RFC 4055 sha256WithRSAEncryption: iso(1) member-body(2) us(840)
+ * rsadsi(113549) pkcs(1) 1 13 */
+static char sha512WithRSAEncr_oid[9] = {
+    0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0d
+};
+
+const krb5_data sha256WithRSAEncr_id = {
+    KV5M_DATA, sizeof(sha256WithRSAEncr_oid), sha256WithRSAEncr_oid
+};
+const krb5_data sha512WithRSAEncr_id = {
+    KV5M_DATA, sizeof(sha512WithRSAEncr_oid), sha512WithRSAEncr_oid
+};
+
+krb5_data const * const supported_cms_algs[] = {
+    &sha512WithRSAEncr_id,
+    &sha256WithRSAEncr_id,
+    NULL
+};

@@ -212,6 +212,14 @@ pkinit_as_req_create(krb5_context context,
     auth_pack.clientPublicValue = &info;
     auth_pack.supportedKDFs = (krb5_data **)supported_kdf_alg_ids;
 
+    /* add List of CMS algorithms */
+    retval = create_krb5_supportedCMSTypes(context, plgctx->cryptoctx,
+                                           reqctx->cryptoctx,
+                                           reqctx->idctx, &cmstypes);
+    auth_pack.supportedCMSTypes = cmstypes;
+    if (retval)
+        goto cleanup;
+
     switch(protocol) {
     case DH_PROTOCOL:
         TRACE_PKINIT_CLIENT_REQ_DH(context);
