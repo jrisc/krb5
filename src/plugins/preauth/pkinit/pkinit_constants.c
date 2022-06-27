@@ -43,11 +43,16 @@ static char sha512_oid[8] = { 0x2B, 0x06, 0x01, 0x05, 0x02, 0x03, 0x06, 0x03 };
 static char sha256WithRSAEncr_oid[9] =
     { 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b };
 
+static char idSha256_oid[9] =
+    { 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01 };
+
 const krb5_data sha1_id = { KV5M_DATA, sizeof(sha1_oid), sha1_oid };
 const krb5_data sha256_id = { KV5M_DATA, sizeof(sha256_oid), sha256_oid };
 const krb5_data sha512_id = { KV5M_DATA, sizeof(sha512_oid), sha512_oid };
 const krb5_data sha256WithRSAEncr_id =
     { KV5M_DATA, sizeof(sha256WithRSAEncr_oid), sha256WithRSAEncr_oid };
+
+const krb5_data idSha256_id = { KV5M_DATA, sizeof(idSha256_oid), idSha256_oid };
 
 krb5_data const * const supported_kdf_alg_ids[] = {
     &sha256_id,
@@ -58,6 +63,7 @@ krb5_data const * const supported_kdf_alg_ids[] = {
 
 krb5_data const * const supported_cms_signature_ids[] = {
     &sha256WithRSAEncr_id,
+    &idSha256_id,
     NULL
 };
 
