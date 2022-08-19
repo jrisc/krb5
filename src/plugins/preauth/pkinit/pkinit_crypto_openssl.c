@@ -1693,6 +1693,7 @@ cms_signeddata_verify(krb5_context context,
         if (CMS_verify(cms, NULL, store, NULL, out, flags) == 0) {
             unsigned long err = ERR_peek_last_error();
             switch(ERR_GET_REASON(err)) {
+            case EVP_R_INVALID_DIGEST:
             case RSA_R_DIGEST_NOT_ALLOWED:
             case CMS_R_UNKNOWN_DIGEST_ALGORITHM:
             case CMS_R_NO_MATCHING_DIGEST:
