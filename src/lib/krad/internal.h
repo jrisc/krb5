@@ -41,6 +41,10 @@
 
 #include <openssl/crypto.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#endif
+
 #ifndef UCHAR_MAX
 #define UCHAR_MAX 255
 #endif

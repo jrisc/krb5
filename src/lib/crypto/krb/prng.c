@@ -28,7 +28,9 @@
 
 #include <openssl/rand.h>
 
-#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#else
 #include <openssl/crypto.h>
 #endif
 

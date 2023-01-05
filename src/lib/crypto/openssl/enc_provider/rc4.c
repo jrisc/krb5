@@ -38,6 +38,10 @@
 
 #include <openssl/evp.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#endif
+
 /*
  * The loopback field is a pointer to the structure.  If the application copies
  * the state (not a valid operation, but one which happens to works with some

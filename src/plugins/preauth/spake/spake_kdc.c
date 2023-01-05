@@ -43,6 +43,10 @@
 
 #include <openssl/crypto.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#endif
+
 /*
  * The SPAKE kdcpreauth module uses a secure cookie containing the following
  * concatenated fields (all integer fields are big-endian):
