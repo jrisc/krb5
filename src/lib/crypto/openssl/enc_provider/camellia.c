@@ -32,6 +32,7 @@
 #include <openssl/camellia.h>
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/core_names.h>
+#include <openssl/fips.h>
 #else
 #include <openssl/modes.h>
 #endif

@@ -59,6 +59,7 @@
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
 #include <openssl/params.h>
 #include <openssl/core_names.h>
+#include <openssl/fips.h>
 #else
 #include <openssl/hmac.h>
 #endif

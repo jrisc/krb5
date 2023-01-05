@@ -40,6 +40,10 @@
 
 #include <openssl/crypto.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/fips.h>
+#endif
+
 typedef struct reqstate_st {
     krb5_pa_spake *msg;         /* set in prep_questions, used in process */
     krb5_keyblock *initial_key;
