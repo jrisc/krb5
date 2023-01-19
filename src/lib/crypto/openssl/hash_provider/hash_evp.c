@@ -44,6 +44,49 @@
 #define EVP_MD_CTX_free EVP_MD_CTX_destroy
 #endif
 
+#include <openssl/provider.h>
+#include <openssl/fips.h>
+#include <threads.h>
+
+typedef struct ossl_lib_md_context {
+    OSSL_LIB_CTX *libctx;
+    OSSL_PROVIDER *default_provider;
+    OSSL_PROVIDER *legacy_provider;
+} ossl_md_context_t;
+
+static thread_local ossl_md_context_t *ossl_md_ctx = NULL;
+
+static krb5_error_code
+init_ossl_md_ctx(ossl_md_context_t *ctx, const char *algo)
+{
+    ctx->libctx = OSSL_LIB_CTX_new();
+    if (!ctx->libctx)
+        return KRB5_CRYPTO_INTERNAL;
+
+    /* Load both legacy and default provider as both may be needed. */
+    ctx->default_provider = OSSL_PROVIDER_load(ctx->libctx, "default");
+    ctx->legacy_provider = OSSL_PROVIDER_load(ctx->libctx, "legacy");
+
+    if (!(ctx->default_provider && ctx->legacy_provider))
+        return KRB5_CRYPTO_INTERNAL;
+
+    return 0;
+}
+
+static void
+deinit_ossl_ctx(ossl_md_context_t *ctx)
+{
+    if (ctx->legacy_provider)
+        OSSL_PROVIDER_unload(ctx->legacy_provider);
+
+    if (ctx->default_provider)
+        OSSL_PROVIDER_unload(ctx->default_provider);
+
+    if (ctx->libctx)
+        OSSL_LIB_CTX_free(ctx->libctx);
+}
+
+
 static krb5_error_code
 hash_evp(const EVP_MD *type, const krb5_crypto_iov *data, size_t num_data,
          krb5_data *output)
@@ -60,11 +103,6 @@ hash_evp(const EVP_MD *type, const krb5_crypto_iov *data, size_t num_data,
     if (ctx == NULL)
         return ENOMEM;
 
-    if (type == EVP_md4() || type == EVP_md5()) {
-        /* See comments below in hash_md4() and hash_md5(). */
-        EVP_MD_CTX_set_flags(ctx, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
-    }
-
     ok = EVP_DigestInit_ex(ctx, type, NULL);
     for (i = 0; i < num_data; i++) {
         if (!SIGN_IOV(&data[i]))
@@ -77,6 +115,43 @@ hash_evp(const EVP_MD *type, const krb5_crypto_iov *data, size_t num_data,
     return ok ? 0 : KRB5_CRYPTO_INTERNAL;
 }
 
+static krb5_error_code
+hash_legacy_evp(const char *algo, const krb5_crypto_iov *data, size_t num_data,
+                krb5_data *output)
+{
+    krb5_error_code err;
+    EVP_MD *md = NULL;
+
+    if (!ossl_md_ctx) {
+        ossl_md_ctx = malloc(sizeof(ossl_md_context_t));
+        if (!ossl_md_ctx) {
+            err = ENOMEM;
+            goto end;
+        }
+
+        err = init_ossl_md_ctx(ossl_md_ctx, algo);
+        if (err) {
+            deinit_ossl_ctx(ossl_md_ctx);
+            free(ossl_md_ctx);
+            ossl_md_ctx = NULL;
+            goto end;
+        }
+    }
+
+    md = EVP_MD_fetch(ossl_md_ctx->libctx, algo, NULL);
+    if (!md) {
+        err = KRB5_CRYPTO_INTERNAL;
+        goto end;
+    }
+
+    err = hash_evp(md, data, num_data, output);
+
+end:
+    if (md)
+        EVP_MD_free(md);
+
+    return err;
+}
 #endif
 
 #ifdef K5_OPENSSL_MD4
@@ -88,7 +163,8 @@ hash_md4(const krb5_crypto_iov *data, size_t num_data, krb5_data *output)
      * by IPA.  These keys are only used along a (separately) secured channel
      * for legacy reasons when performing trusts to Active Directory.
      */
-    return hash_evp(EVP_md4(), data, num_data, output);
+    return FIPS_mode() ? hash_legacy_evp("MD4", data, num_data, output)
+                       : hash_evp(EVP_md4(), data, num_data, output);
 }
 
 const struct krb5_hash_provider krb5int_hash_md4 = {
@@ -100,9 +176,12 @@ const struct krb5_hash_provider krb5int_hash_md4 = {
 static krb5_error_code
 hash_md5(const krb5_crypto_iov *data, size_t num_data, krb5_data *output)
 {
-    /* MD5 is needed in FIPS mode for communication with RADIUS servers.  This
-     * is gated in libkrad by libdefaults->radius_md5_fips_override. */
-    return hash_evp(EVP_md5(), data, num_data, output);
+    /*
+     * MD5 is needed in FIPS mode for communication with RADIUS servers.  This
+     * is gated in libkrad by libdefaults->radius_md5_fips_override.
+     */
+    return FIPS_mode() ? hash_legacy_evp("MD5", data, num_data, output)
+                       : hash_evp(EVP_md5(), data, num_data, output);
 }
 
 const struct krb5_hash_provider krb5int_hash_md5 = {
