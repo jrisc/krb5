@@ -426,10 +426,15 @@ show_credential(krb5_context context, krb5_creds *cred, krb5_ccache cc)
 
     if ((retval = krb5_cc_get_principal(context, cc, &princ))) {
         com_err(prog_name, retval, _("while retrieving principal name"));
+        free(sname);
+        free(name);
         return;
     }
     if ((retval = krb5_unparse_name(context, princ, &defname))) {
         com_err(prog_name, retval, _("while unparsing principal name"));
+        krb5_free_principal(context, princ);
+        free(sname);
+        free(name);
         return;
     }
 
@@ -470,6 +475,8 @@ show_credential(krb5_context context, krb5_creds *cred, krb5_ccache cc)
     putchar('\n');
     free(name);
     free(sname);
+    free(defname);
+    krb5_free_principal(context, princ);
 }
 
 /* Create a random string suitable for a filename extension. */

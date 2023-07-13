@@ -197,8 +197,10 @@ k5_build_conf_principals(krb5_context context, krb5_ccache id,
 
     if (principal) {
         ret = krb5_unparse_name(context, principal, &pname);
-        if (ret)
+        if (ret) {
+            krb5_free_principal(context, client);
             return ret;
+	}
     }
 
     ret = krb5_build_principal(context, &cred->server,

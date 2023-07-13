@@ -471,6 +471,7 @@ find_princ_in_list(krb5_context context, krb5_principal princ, char **plist,
         i++;
     }
 
+    free(princname);
     return 0;
 
 }
@@ -523,12 +524,17 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
     }
 
     retval=krb5_parse_name(context, target_user, &target_client);
-    if (retval)
+    if (retval) {
+        krb5_free_principal(context, cc_def_princ);
         return retval;
+    }
 
     retval=krb5_parse_name(context, source_user, &source_client);
-    if (retval)
+    if (retval) {
+        krb5_free_principal(context, cc_def_princ);
+        krb5_free_principal(context, target_client);
         return retval;
+    }
 
     if (source_uid == 0){
         if (target_uid != 0)
@@ -585,14 +591,19 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             *path_out = NOT_AUTHORIZED;
             if (auth_debug)
                 printf("GET_best_princ_for_target: via empty auth files path\n");
+            krb5_free_principal(context, cc_def_princ);
+            krb5_free_principal(context, target_client);
             return 0;
         }
     }
 
     retval = krb5_sname_to_principal(context, hostname, NULL,
                                      KRB5_NT_SRV_HST, &end_server);
-    if (retval)
+    if (retval) {
+        krb5_free_principal(context, cc_def_princ);
+        krb5_free_principal(context, target_client);
         return retval;
+    }
 
 
     /* first see if default principal of the source cache

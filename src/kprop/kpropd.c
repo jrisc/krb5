@@ -1302,8 +1302,10 @@ authorized_principal(krb5_context context, krb5_principal p,
         return FALSE;
 
     acl_file = fopen(acl_file_name, "r");
-    if (acl_file == NULL)
+    if (acl_file == NULL) {
+        free(name);
         return FALSE;
+    }
 
     while (!feof(acl_file)) {
         if (!fgets(buf, sizeof(buf), acl_file))

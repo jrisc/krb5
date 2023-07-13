@@ -93,20 +93,25 @@ krb5_authorization(krb5_context context, krb5_principal principal,
 
     /* k5login and k5users must be owned by target user or root */
     if (!k5login_flag){
-        if ((login_fp = fopen(k5login_path, "r")) == NULL)
+        if ((login_fp = fopen(k5login_path, "r")) == NULL) {
+            free(princname);
             return 0;
+        }
         if ( fowner(login_fp, pwd->pw_uid) == FALSE) {
             fclose(login_fp);
+            free(princname);
             return 0;
         }
     }
 
     if (!k5users_flag){
         if ((users_fp = fopen(k5users_path, "r")) == NULL) {
+            free(princname);
             return 0;
         }
         if ( fowner(users_fp, pwd->pw_uid) == FALSE){
             fclose(users_fp);
+            free(princname);
             return 0;
         }
     }

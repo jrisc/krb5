@@ -481,6 +481,7 @@ show_ccache(krb5_ccache cache)
     }
     ret = krb5_unparse_name(context, princ, &defname);
     if (ret) {
+        krb5_free_principal(context, princ);
         com_err(progname, ret, _("while unparsing principal name"));
         return 1;
     }
@@ -497,6 +498,7 @@ show_ccache(krb5_ccache cache)
 
     ret = krb5_cc_start_seq_get(context, cache, &cur);
     if (ret) {
+        krb5_free_principal(context, princ);
         com_err(progname, ret, _("while starting to retrieve tickets"));
         return 1;
     }
@@ -533,8 +535,10 @@ check_ccache(krb5_ccache cache)
 
     if (krb5_cc_get_principal(context, cache, &princ) != 0)
         return 1;
-    if (krb5_cc_start_seq_get(context, cache, &cur) != 0)
+    if (krb5_cc_start_seq_get(context, cache, &cur) != 0) {
+        krb5_free_principal(context, princ);
         return 1;
+    }
     found_tgt = found_current_tgt = found_current_cred = FALSE;
     while ((ret = krb5_cc_next_cred(context, cache, &cur, &creds)) == 0) {
         if (is_local_tgt(creds.server, &princ->realm)) {

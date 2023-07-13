@@ -156,6 +156,7 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
     memset(&creds, 0, sizeof(creds));
 
     if ((code = krb5_timeofday(context, &now))) {
+        free(client_name);
         com_err(prog_name, code, _("while getting time of day"));
         return (FALSE);
     }
@@ -166,6 +167,7 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
         fprintf(stderr,
                 _("principal name %s too long for internal buffer space\n"),
                 client_name);
+        free(client_name);
         return FALSE;
     }
 
@@ -215,6 +217,7 @@ dump_principal(krb5_context context, char *str, krb5_principal p)
                 error_message(retval));
     }
     fprintf(stderr, " %s: %s\n", str, stname);
+    free(stname);
 }
 
 void
