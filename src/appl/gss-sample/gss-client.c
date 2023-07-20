@@ -267,6 +267,7 @@ client_establish_context(int s, char *service_name, OM_uint32 gss_flags,
                                    &target_name);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("parsing name", maj_stat, min_stat);
+            gss_release_cred(&min_stat, &cred);
             return -1;
         }
 
@@ -274,6 +275,7 @@ client_establish_context(int s, char *service_name, OM_uint32 gss_flags,
             if (send_token(s, TOKEN_NOOP | TOKEN_CONTEXT_NEXT, empty_token) <
                 0) {
                 (void) gss_release_name(&min_stat, &target_name);
+                (void) gss_release_cred(&min_stat, &cred);
                 return -1;
             }
         }
@@ -318,6 +320,7 @@ client_establish_context(int s, char *service_name, OM_uint32 gss_flags,
                     0) {
                     (void) gss_release_buffer(&min_stat, &send_tok);
                     (void) gss_release_name(&min_stat, &target_name);
+                    (void) gss_release_cred(&min_stat, &cred);
                     return -1;
                 }
             }
@@ -340,6 +343,7 @@ client_establish_context(int s, char *service_name, OM_uint32 gss_flags,
                     printf("continue needed...");
                 if (recv_token(s, &token_flags, &recv_tok) < 0) {
                     (void) gss_release_name(&min_stat, &target_name);
+                    (void) gss_release_cred(&min_stat, &cred);
                     return -1;
                 }
                 token_ptr = &recv_tok;
@@ -439,8 +443,8 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
     int     s, state;
     OM_uint32 ret_flags;
     OM_uint32 maj_stat, min_stat;
-    gss_name_t src_name, targ_name;
-    gss_buffer_desc sname, tname;
+    gss_name_t src_name = GSS_C_NO_NAME, targ_name = GSS_C_NO_NAME;
+    gss_buffer_desc sname = GSS_C_EMPTY_BUFFER, tname = GSS_C_EMPTY_BUFFER;
     OM_uint32 lifetime;
     gss_OID mechanism, name_type;
     int     is_local;
@@ -451,17 +455,17 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
     gss_buffer_desc oid_name;
     size_t  i;
     int     token_flags;
+    int retval = -1;
 
     /* Open connection */
     if ((s = connect_to_server(host, port)) < 0)
-        return -1;
+        goto cleanup;
 
     /* Establish context */
     if (client_establish_context(s, service_name, gss_flags, auth_flag,
                                  v1_format, oid, username, password,
                                  &context, &ret_flags) < 0) {
-        (void) closesocket(s);
-        return -1;
+        goto cleanup;
     }
 
     if (auth_flag && verbose) {
@@ -475,19 +479,19 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                                        &is_local, &is_open);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("inquiring context", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
 
         maj_stat = gss_display_name(&min_stat, src_name, &sname, &name_type);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("displaying source name", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
         maj_stat = gss_display_name(&min_stat, targ_name, &tname,
                                     (gss_OID *) NULL);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("displaying target name", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
         printf("\"%.*s\" to \"%.*s\", lifetime %d, flags %x, %s, %s\n",
                (int) sname.length, (char *) sname.value,
@@ -496,15 +500,10 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                (is_local) ? "locally initiated" : "remotely initiated",
                (is_open) ? "open" : "closed");
 
-        (void) gss_release_name(&min_stat, &src_name);
-        (void) gss_release_name(&min_stat, &targ_name);
-        (void) gss_release_buffer(&min_stat, &sname);
-        (void) gss_release_buffer(&min_stat, &tname);
-
         maj_stat = gss_oid_to_str(&min_stat, name_type, &oid_name);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("converting oid->string", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
         printf("Name type of source name is %.*s.\n",
                (int) oid_name.length, (char *) oid_name.value);
@@ -515,13 +514,13 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                                               mechanism, &mech_names);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("inquiring mech names", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
 
         maj_stat = gss_oid_to_str(&min_stat, mechanism, &oid_name);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("converting oid->string", maj_stat, min_stat);
-            return -1;
+            goto cleanup;
         }
         printf("Mechanism %.*s supports %d names\n",
                (int) oid_name.length, (char *) oid_name.value,
@@ -533,7 +532,7 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                                       &mech_names->elements[i], &oid_name);
             if (maj_stat != GSS_S_COMPLETE) {
                 display_status("converting oid->string", maj_stat, min_stat);
-                return -1;
+                goto cleanup;
             }
             printf("  %d: %.*s\n", (int) i,
                    (int) oid_name.length, (char *) oid_name.value);
@@ -558,10 +557,7 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                          &in_buf, &state, &out_buf);
             if (maj_stat != GSS_S_COMPLETE) {
                 display_status("wrapping message", maj_stat, min_stat);
-                (void) closesocket(s);
-                (void) gss_delete_sec_context(&min_stat, &context,
-                                              GSS_C_NO_BUFFER);
-                return -1;
+                goto cleanup;
             } else if (encrypt_flag && !state) {
                 fprintf(stderr, "Warning!  Message not encrypted.\n");
             }
@@ -575,22 +571,15 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                               (wrap_flag ? TOKEN_WRAPPED : 0) |
                               (encrypt_flag ? TOKEN_ENCRYPTED : 0) |
                               (mic_flag ? TOKEN_SEND_MIC : 0))),
-                       &out_buf) < 0) {
-            (void) closesocket(s);
-            (void) gss_delete_sec_context(&min_stat, &context,
-                                          GSS_C_NO_BUFFER);
-            return -1;
-        }
+                       &out_buf) < 0)
+            goto cleanup;
+
         if (out_buf.value != in_buf.value)
             (void) gss_release_buffer(&min_stat, &out_buf);
 
         /* Read signature block into out_buf */
-        if (recv_token(s, &token_flags, &out_buf) < 0) {
-            (void) closesocket(s);
-            (void) gss_delete_sec_context(&min_stat, &context,
-                                          GSS_C_NO_BUFFER);
-            return -1;
-        }
+        if (recv_token(s, &token_flags, &out_buf) < 0)
+            goto cleanup;
 
         if (mic_flag) {
             /* Verify signature block */
@@ -598,10 +587,7 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
                                       &out_buf, &qop_state);
             if (maj_stat != GSS_S_COMPLETE) {
                 display_status("verifying signature", maj_stat, min_stat);
-                (void) closesocket(s);
-                (void) gss_delete_sec_context(&min_stat, &context,
-                                              GSS_C_NO_BUFFER);
-                return -1;
+                goto cleanup;
             }
 
             if (verbose)
@@ -626,18 +612,30 @@ call_server(char *host, u_short port, gss_OID oid, char *service_name,
         maj_stat = gss_delete_sec_context(&min_stat, &context, &out_buf);
         if (maj_stat != GSS_S_COMPLETE) {
             display_status("deleting context", maj_stat, min_stat);
-            (void) closesocket(s);
-            (void) gss_delete_sec_context(&min_stat, &context,
-                                          GSS_C_NO_BUFFER);
-            return -1;
+            goto cleanup;
         }
 
         (void) gss_release_buffer(&min_stat, &out_buf);
     }
 
-    (void) closesocket(s);
+    retval = 0;
 
-    return 0;
+cleanup:
+    if (src_name != GSS_C_NO_NAME)
+        (void) gss_release_name(&min_stat, &src_name);
+    if (targ_name != GSS_C_NO_NAME)
+        (void) gss_release_name(&min_stat, &targ_name);
+    if (sname.value)
+        (void) gss_release_buffer(&min_stat, &sname);
+    if (tname.value)
+        (void) gss_release_buffer(&min_stat, &tname);
+    if (context != GSS_C_NO_CONTEXT)
+        (void) gss_delete_sec_context(&min_stat, &context,
+                                      GSS_C_NO_BUFFER);
+    if (s >= 0)
+        (void) closesocket(s);
+
+    return retval;
 }
 
 static void

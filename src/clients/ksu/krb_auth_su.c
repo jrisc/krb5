@@ -231,6 +231,7 @@ plain_dump_principal (krb5_context context, krb5_principal p)
                 error_message(retval));
     }
     fprintf(stderr, "%s ", stname);
+    free(stname);
 }
 
 
@@ -257,6 +258,8 @@ get_best_principal(krb5_context context, char **plist, krb5_principal *client)
     while(plist[i]){
 
         if ((retval = krb5_parse_name(context, plist[i], &temp_client))){
+            if (best_client)
+                krb5_free_principal(context, best_client);
             return retval;
         }
 
@@ -282,6 +285,7 @@ get_best_principal(krb5_context context, char **plist, krb5_principal *client)
                     if(best_client){
                         if(krb5_princ_size(context, best_client) >
                            krb5_princ_size(context, temp_client)){
+                            krb5_free_principal(context, best_client);
                             best_client = temp_client;
                         }
                     }else{

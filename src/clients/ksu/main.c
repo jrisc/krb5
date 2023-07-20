@@ -930,6 +930,7 @@ resolve_target_cache(krb5_context context, krb5_principal princ,
             free(sym);
         } while (ks_ccache_name_is_initialized(context, ccname));
         retval = krb5_cc_resolve(context, ccname, &ccache);
+        free(ccname);
     } else {
         /* Look for a cache in the collection that we can reuse. */
         retval = krb5_cc_cache_match(context, princ, &ccache);

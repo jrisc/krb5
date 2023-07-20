@@ -972,8 +972,10 @@ kcm_start_seq_get(krb5_context context, krb5_ccache cache,
     if (ret == 0) {
         /* GET_CRED_LIST is available. */
         ret = kcmreq_get_cred_list(&req, &creds);
-        if (ret)
+        if (ret) {
+            free_cred_list(creds);
             goto cleanup;
+        }
     } else if (unsupported_op_error(ret)) {
         /* Fall back to GET_CRED_UUID_LIST. */
         kcmreq_free(&req);

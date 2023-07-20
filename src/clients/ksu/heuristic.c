@@ -627,7 +627,7 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             retval= find_princ_in_list(context, princ_trials[i].p, aplist,
                                        &found);
             if (retval)
-                return retval;
+                goto cleanup;
 
             if (found == TRUE){
                 princ_trials[i].found = TRUE;
@@ -636,12 +636,12 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
                                              princ_trials[i].p,
                                              end_server, &found);
                 if (retval)
-                    return retval;
+                    goto cleanup;
                 if (found == TRUE){
                     *client = princ_trials[i].p;
                     if (auth_debug)
                         printf("GET_best_princ_for_target: via ticket file, choice #%d\n", i);
-                    return 0;
+                    goto cleanup;
                 }
             }
         }
@@ -654,18 +654,18 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
     while (aplist[i]){
         retval = krb5_parse_name(context, aplist[i], &temp_client);
         if (retval)
-            return retval;
+            goto cleanup;
 
         retval = find_either_ticket (context, cc_source, temp_client,
                                      end_server, &found);
         if (retval)
-            return retval;
+            goto cleanup;
 
         if (found == TRUE){
             if (auth_debug)
                 printf("GET_best_princ_for_target: via ticket file, choice: any ok ticket \n" );
             *client = temp_client;
-            return 0;
+            goto cleanup;
         }
 
         krb5_free_principal(context, temp_client);
@@ -683,7 +683,7 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
 
             if (auth_debug)
                 printf("GET_best_princ_for_target: via prompt passwd list choice #%d \n",i);
-            return  0;
+            goto cleanup;
         }
     }
 
@@ -693,7 +693,7 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             retval=krb5_copy_principal(context, princ_trials[i].p,
                                        &temp_client);
             if(retval)
-                return retval;
+                goto cleanup;
 
             /* get the client name that is the closest
                to the three princ in trials */
@@ -701,13 +701,13 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             retval=get_closest_principal(context, aplist, &temp_client,
                                          &found);
             if(retval)
-                return retval;
+                goto cleanup;
 
             if (found == TRUE){
                 *client = temp_client;
                 if (auth_debug)
                     printf("GET_best_princ_for_target: via prompt passwd list choice: approximation of princ in trials # %d \n",i);
-                return 0;
+                goto cleanup;
             }
             krb5_free_principal(context, temp_client);
         }
@@ -720,5 +720,9 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
         printf( "GET_best_princ_for_target: out of luck, can't get appropriate default principal\n");
 
     *path_out = NOT_AUTHORIZED;
-    return 0;
+    retval = 0;
+
+cleanup:
+    krb5_free_principal(context, end_server);
+    return retval;
 }
