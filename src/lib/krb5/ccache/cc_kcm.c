@@ -972,10 +972,8 @@ kcm_start_seq_get(krb5_context context, krb5_ccache cache,
     if (ret == 0) {
         /* GET_CRED_LIST is available. */
         ret = kcmreq_get_cred_list(&req, &creds);
-        if (ret) {
-            free_cred_list(creds);
+        if (ret)
             goto cleanup;
-        }
     } else if (unsupported_op_error(ret)) {
         /* Fall back to GET_CRED_UUID_LIST. */
         kcmreq_free(&req);
@@ -991,8 +989,10 @@ kcm_start_seq_get(krb5_context context, krb5_ccache cache,
     }
 
     cursor = k5alloc(sizeof(*cursor), &ret);
-    if (cursor == NULL)
+    if (cursor == NULL) {
+        free_cred_list(creds);
         goto cleanup;
+    }
     cursor->uuids = uuids;
     cursor->creds = creds;
     *cursor_out = (krb5_cc_cursor)cursor;

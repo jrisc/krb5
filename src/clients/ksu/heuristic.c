@@ -317,8 +317,11 @@ get_closest_principal(krb5_context context, char **plist,
     while(plist[i]){
 
         retval = krb5_parse_name(context, plist[i], &temp_client);
-        if (retval)
+        if (retval) {
+            if (best_client)
+                krb5_free_principal(context, best_client);
             return retval;
+        }
 
         pnelem = krb5_princ_size(context, temp_client);
 
@@ -346,6 +349,7 @@ get_closest_principal(krb5_context context, char **plist,
                 if(best_client){
                     if(krb5_princ_size(context, best_client) >
                        krb5_princ_size(context, temp_client)){
+                        krb5_free_principal(context, best_client);
                         best_client = temp_client;
                     }
                 }else
@@ -592,7 +596,6 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             if (auth_debug)
                 printf("GET_best_princ_for_target: via empty auth files path\n");
             krb5_free_principal(context, cc_def_princ);
-            krb5_free_principal(context, target_client);
             return 0;
         }
     }

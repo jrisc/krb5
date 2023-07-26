@@ -625,9 +625,9 @@ cleanup:
         (void) gss_release_name(&min_stat, &src_name);
     if (targ_name != GSS_C_NO_NAME)
         (void) gss_release_name(&min_stat, &targ_name);
-    if (sname.value)
+    if (sname.value != NULL)
         (void) gss_release_buffer(&min_stat, &sname);
-    if (tname.value)
+    if (tname.value != NULL)
         (void) gss_release_buffer(&min_stat, &tname);
     if (context != GSS_C_NO_CONTEXT)
         (void) gss_delete_sec_context(&min_stat, &context,
