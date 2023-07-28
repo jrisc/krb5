@@ -554,6 +554,7 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
         if (auth_debug)
             printf(" GET_best_princ_for_target: via source_uid == 0\n");
 
+        krb5_free_principal(context, cc_def_princ);
         return 0;
     }
 
