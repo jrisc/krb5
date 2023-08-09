@@ -317,11 +317,8 @@ get_closest_principal(krb5_context context, char **plist,
     while(plist[i]){
 
         retval = krb5_parse_name(context, plist[i], &temp_client);
-        if (retval) {
-            if (best_client)
-                krb5_free_principal(context, best_client);
-            return retval;
-        }
+        if (retval)
+            goto cleanup;
 
         pnelem = krb5_princ_size(context, temp_client);
 
@@ -362,9 +359,12 @@ get_closest_principal(krb5_context context, char **plist,
     if (best_client) {
         *found = TRUE;
         *client = best_client;
+        best_client = NULL;
     }
 
-    return 0;
+cleanup:
+    krb5_free_principal(context, best_client);
+    return retval;
 }
 
 /****************************************************************
@@ -503,11 +503,9 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
 {
 
     princ_info princ_trials[10];
-    krb5_principal cc_def_princ = NULL;
-    krb5_principal temp_client;
-    krb5_principal target_client;
-    krb5_principal source_client;
-    krb5_principal end_server;
+    krb5_principal cc_def_princ = NULL, temp_client = NULL;
+    krb5_principal target_client = NULL, source_client = NULL;
+    krb5_principal end_server = NULL;
     krb5_error_code retval;
     char ** aplist =NULL;
     krb5_boolean found = FALSE;
@@ -524,60 +522,59 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
     if (ks_ccache_is_initialized(context, cc_source)) {
         retval = krb5_cc_get_principal(context, cc_source, &cc_def_princ);
         if (retval)
-            return retval;
+            goto cleanup;
     }
 
     retval=krb5_parse_name(context, target_user, &target_client);
-    if (retval) {
-        krb5_free_principal(context, cc_def_princ);
-        return retval;
-    }
+    if (retval)
+        goto cleanup;
 
     retval=krb5_parse_name(context, source_user, &source_client);
-    if (retval) {
-        krb5_free_principal(context, cc_def_princ);
-        krb5_free_principal(context, target_client);
-        return retval;
-    }
+    if (retval)
+        goto cleanup;
 
-    if (source_uid == 0){
-        if (target_uid != 0)
-            *client = target_client; /* this will be used to restrict
-                                        the cache copty */
-        else {
-            if(cc_def_princ)
-                *client = cc_def_princ;
-            else
-                *client = target_client;
+    if (source_uid == 0) {
+        if (target_uid != 0) {
+            /* This will be used to restrict the cache copy. */
+            *client = target_client;
+            target_client = NULL;
+        } else if (cc_def_princ != NULL) {
+            *client = cc_def_princ;
+            cc_def_princ = NULL;
+        } else {
+            *client = target_client;
+            target_client = NULL;
         }
-
         if (auth_debug)
             printf(" GET_best_princ_for_target: via source_uid == 0\n");
-
-        krb5_free_principal(context, cc_def_princ);
-        return 0;
+        goto cleanup;
     }
 
     /* from here on, the code is for source_uid !=  0 */
 
     if (source_uid && (source_uid == target_uid)){
-        if(cc_def_princ)
+        if (cc_def_princ != NULL) {
             *client = cc_def_princ;
-        else
+            cc_def_princ = NULL;
+        } else {
             *client = target_client;
+            target_client = NULL;
+        }
         if (auth_debug)
             printf("GET_best_princ_for_target: via source_uid == target_uid\n");
-        return 0;
+        goto cleanup;
     }
 
     /* Become root, then target for looking at .k5login.*/
     if (krb5_seteuid(0) || krb5_seteuid(target_uid) ) {
-        return errno;
+        retval = errno;
+        goto cleanup;
     }
 
     /* if .k5users and .k5login do not exist */
     if (stat(k5login_path, &tb) && stat(k5users_path, &tb) ){
         *client = target_client;
+        target_client = NULL;
 
         if (cmd)
             *path_out = NOT_AUTHORIZED;
@@ -585,11 +582,11 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
         if (auth_debug)
             printf(" GET_best_princ_for_target: via no auth files path\n");
 
-        return 0;
+        goto cleanup;
     }else{
         retval = get_authorized_princ_names(target_user, cmd, &aplist);
         if (retval)
-            return retval;
+            goto cleanup;
 
         /* .k5users or .k5login exist, but no authorization */
         if ((!aplist) || (!aplist[0])) {
@@ -597,18 +594,14 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
             if (auth_debug)
                 printf("GET_best_princ_for_target: via empty auth files path\n");
             krb5_free_principal(context, cc_def_princ);
-            return 0;
+            goto cleanup;
         }
     }
 
     retval = krb5_sname_to_principal(context, hostname, NULL,
                                      KRB5_NT_SRV_HST, &end_server);
-    if (retval) {
-        krb5_free_principal(context, cc_def_princ);
-        krb5_free_principal(context, target_client);
-        return retval;
-    }
-
+    if (retval)
+        goto cleanup;
 
     /* first see if default principal of the source cache
      * can get us in, then the target_user@realm, then the
@@ -673,6 +666,7 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
         }
 
         krb5_free_principal(context, temp_client);
+        temp_client = NULL;
 
         i++;
     }
@@ -727,6 +721,10 @@ get_best_princ_for_target(krb5_context context, uid_t source_uid,
     retval = 0;
 
 cleanup:
+    krb5_free_principal(context, cc_def_princ);
+    krb5_free_principal(context, target_client);
+    krb5_free_principal(context, source_client);
+    krb5_free_principal(context, temp_client);
     krb5_free_principal(context, end_server);
     return retval;
 }

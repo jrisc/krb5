@@ -406,36 +406,29 @@ void
 show_credential(krb5_context context, krb5_creds *cred, krb5_ccache cc)
 {
     krb5_error_code retval;
-    char *name, *sname, *flags;
+    char *name = NULL, *sname = NULL, *defname = NULL, *flags;
     int first = 1;
-    krb5_principal princ;
-    char * defname;
+    krb5_principal princ = NULL;
     int show_flags =1;
 
     retval = krb5_unparse_name(context, cred->client, &name);
     if (retval) {
         com_err(prog_name, retval, _("while unparsing client name"));
-        return;
+        goto cleanup;
     }
     retval = krb5_unparse_name(context, cred->server, &sname);
     if (retval) {
         com_err(prog_name, retval, _("while unparsing server name"));
-        free(name);
-        return;
+        goto cleanup;
     }
 
     if ((retval = krb5_cc_get_principal(context, cc, &princ))) {
         com_err(prog_name, retval, _("while retrieving principal name"));
-        free(sname);
-        free(name);
-        return;
+        goto cleanup;
     }
     if ((retval = krb5_unparse_name(context, princ, &defname))) {
         com_err(prog_name, retval, _("while unparsing principal name"));
-        krb5_free_principal(context, princ);
-        free(sname);
-        free(name);
-        return;
+        goto cleanup;
     }
 
     if (!cred->times.starttime)
@@ -473,6 +466,8 @@ show_credential(krb5_context context, krb5_creds *cred, krb5_ccache cc)
         }
     }
     putchar('\n');
+
+cleanup:
     free(name);
     free(sname);
     free(defname);

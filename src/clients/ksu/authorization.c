@@ -28,8 +28,6 @@
 
 #include "ksu.h"
 
-static void auth_cleanup (FILE *, FILE *, char *);
-
 krb5_boolean
 fowner(FILE *fp, uid_t uid)
 {
@@ -52,10 +50,10 @@ fowner(FILE *fp, uid_t uid)
 
 /*
  * Given a Kerberos principal "principal", and a local username "luser",
- * determine whether user is authorized to login according to the
- * authorization files ~luser/.k5login" and ~luser/.k5users.  Returns TRUE
- * if authorized, FALSE if not authorized.
- *
+ * determine whether user is authorized to login according to the authorization
+ * files ~luser/.k5login" and ~luser/.k5users.  Set *ok to TRUE if authorized,
+ * FALSE if not authorized.  Return 0 if the authorization check succeeded
+ * (regardless of its result), non-zero if it encountered an error.
  */
 
 krb5_error_code
@@ -64,7 +62,7 @@ krb5_authorization(krb5_context context, krb5_principal principal,
                    char **out_fcmd)
 {
     struct passwd *pwd;
-    char *princname;
+    char *princname = NULL;
     int k5login_flag =0;
     int k5users_flag =0;
     krb5_boolean retbool =FALSE;
@@ -76,7 +74,7 @@ krb5_authorization(krb5_context context, krb5_principal principal,
 
     /* no account => no access */
     if ((pwd = getpwnam(luser)) == NULL)
-        return 0;
+        goto cleanup;
 
     retval = krb5_unparse_name(context, principal, &princname);
     if (retval)
@@ -93,27 +91,19 @@ krb5_authorization(krb5_context context, krb5_principal principal,
 
     /* k5login and k5users must be owned by target user or root */
     if (!k5login_flag){
-        if ((login_fp = fopen(k5login_path, "r")) == NULL) {
-            free(princname);
-            return 0;
-        }
-        if ( fowner(login_fp, pwd->pw_uid) == FALSE) {
-            fclose(login_fp);
-            free(princname);
-            return 0;
-        }
+        login_fp = fopen(k5login_path, "r");
+        if (login_fp == NULL)
+            goto cleanup;
+        if (fowner(login_fp, pwd->pw_uid) == FALSE)
+            goto cleanup;
     }
 
     if (!k5users_flag){
-        if ((users_fp = fopen(k5users_path, "r")) == NULL) {
-            free(princname);
-            return 0;
-        }
-        if ( fowner(users_fp, pwd->pw_uid) == FALSE){
-            fclose(users_fp);
-            free(princname);
-            return 0;
-        }
+        users_fp = fopen(k5users_path, "r");
+        if (users_fp == NULL)
+            goto cleanup;
+        if (fowner(users_fp, pwd->pw_uid) == FALSE)
+            goto cleanup;
     }
 
     if (auth_debug){
@@ -132,10 +122,8 @@ krb5_authorization(krb5_context context, krb5_principal principal,
                     princname);
 
         retval = k5login_lookup(login_fp,  princname, &retbool);
-        if (retval) {
-            auth_cleanup(users_fp, login_fp, princname);
-            return retval;
-        }
+        if (retval)
+            goto cleanup;
         if (retbool) {
             if (cmd)
                 *out_fcmd = xstrdup(cmd);
@@ -145,10 +133,8 @@ krb5_authorization(krb5_context context, krb5_principal principal,
     if ((!k5users_flag) && (retbool == FALSE) ){
         retval = k5users_lookup (users_fp, princname,
                                  cmd, &retbool, out_fcmd);
-        if(retval) {
-            auth_cleanup(users_fp, login_fp, princname);
-            return retval;
-        }
+        if (retval)
+            goto cleanup;
     }
 
     if (k5login_flag && k5users_flag){
@@ -164,8 +150,14 @@ krb5_authorization(krb5_context context, krb5_principal principal,
     }
 
     *ok =retbool;
-    auth_cleanup(users_fp, login_fp, princname);
-    return 0;
+
+cleanup:
+    if (users_fp != NULL)
+        fclose(users_fp);
+    if (login_fp != NULL)
+        fclose(login_fp);
+    free(princname);
+    return retval;
 }
 
 /***********************************************************
@@ -655,17 +647,6 @@ get_next_token (char **lnext)
     }
 
     return out_ptr;
-}
-
-static void
-auth_cleanup(FILE *users_fp, FILE *login_fp, char *princname)
-{
-
-    free (princname);
-    if (users_fp)
-        fclose(users_fp);
-    if (login_fp)
-        fclose(login_fp);
 }
 
 void

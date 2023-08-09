@@ -486,7 +486,7 @@ remove_principal(char *keytab_str, krb5_keytab keytab,
 
 cleanup:
     if (cursor != NULL)
-        (void) krb5_kt_end_seq_get(context, keytab, &cursor);
+        (void)krb5_kt_end_seq_get(context, keytab, &cursor);
     krb5_free_principal(context, princ);
 }
 

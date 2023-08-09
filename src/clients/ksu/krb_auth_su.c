@@ -137,11 +137,12 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
                        krb5_get_init_creds_opt *options,
                        krb5_boolean *zero_password, krb5_creds *creds_out)
 {
+    krb5_boolean retval = FALSE;
     krb5_error_code code;
-    krb5_creds creds;
+    krb5_creds creds = { 0 };
     krb5_timestamp now;
     unsigned int pwsize;
-    char password[255], *client_name, prompt[255];
+    char password[255], prompt[255], *client_name = NULL;
     int result;
 
     *zero_password = FALSE;
@@ -150,15 +151,14 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
 
     if ((code = krb5_unparse_name(context, client, &client_name))) {
         com_err (prog_name, code, _("when unparsing name"));
-        return (FALSE);
+        goto cleanup;
     }
 
     memset(&creds, 0, sizeof(creds));
 
     if ((code = krb5_timeofday(context, &now))) {
-        free(client_name);
         com_err(prog_name, code, _("while getting time of day"));
-        return (FALSE);
+        goto cleanup;
     }
 
     result = snprintf(prompt, sizeof(prompt), _("Kerberos password for %s: "),
@@ -167,8 +167,7 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
         fprintf(stderr,
                 _("principal name %s too long for internal buffer space\n"),
                 client_name);
-        free(client_name);
-        return FALSE;
+        goto cleanup;
     }
 
     pwsize = sizeof(password);
@@ -177,13 +176,13 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
     if (code ) {
         com_err(prog_name, code, _("while reading password for '%s'\n"),
                 client_name);
-        return (FALSE);
+        goto cleanup;
     }
 
     if ( pwsize == 0) {
         fprintf(stderr, _("No password given\n"));
         *zero_password = TRUE;
-        return (FALSE);
+        goto cleanup;
     }
 
     code = krb5_get_init_creds_password(context, &creds, client, password,
@@ -197,13 +196,17 @@ ksu_get_tgt_via_passwd(krb5_context context, krb5_principal client,
             fprintf(stderr, _("%s: Password incorrect\n"), prog_name);
         else
             com_err(prog_name, code, _("while getting initial credentials"));
-        return (FALSE);
+        goto cleanup;
     }
-    if (creds_out != NULL)
+    if (creds_out != NULL) {
         *creds_out = creds;
-    else
-        krb5_free_cred_contents(context, &creds);
-    return (TRUE);
+        memset(&creds, 0, sizeof(creds));
+    }
+
+cleanup:
+    krb5_free_cred_contents(context, &creds);
+    free(client_name);
+    return retval;
 }
 
 void
@@ -258,8 +261,7 @@ get_best_principal(krb5_context context, char **plist, krb5_principal *client)
     while(plist[i]){
 
         if ((retval = krb5_parse_name(context, plist[i], &temp_client))){
-            if (best_client)
-                krb5_free_principal(context, best_client);
+            krb5_free_principal(context, best_client);
             return retval;
         }
 
@@ -287,6 +289,8 @@ get_best_principal(krb5_context context, char **plist, krb5_principal *client)
                            krb5_princ_size(context, temp_client)){
                             krb5_free_principal(context, best_client);
                             best_client = temp_client;
+                        } else {
+                            krb5_free_principal(context, temp_client);
                         }
                     }else{
                         best_client = temp_client;
