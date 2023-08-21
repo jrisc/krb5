@@ -28,6 +28,16 @@
 
 #include "ksu.h"
 
+static void
+free_fcmd_array(char **fcmd_arr)
+{
+    size_t i;
+
+    for (i = 0; i < MAX_CMD && fcmd_arr[i] != NULL; ++i)
+        free(fcmd_arr[i]);
+    free(fcmd_arr);
+}
+
 krb5_boolean
 fowner(FILE *fp, uid_t uid)
 {
@@ -321,14 +331,20 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
     char * path_ptr, *path;
     char * lp, * tc;
     int i=0;
+    krb5_boolean retval = FALSE;
 
     tmp_fcmd = (char **) xcalloc (MAX_CMD, sizeof(char *));
 
     if (*fcmd == '/'){  /* must be full path */
         tmp_fcmd[0] = xstrdup(fcmd);
+        if (tmp_fcmd[0] == NULL) {
+            *out_err = strerror(ENOMEM);
+            goto cleanup;
+        }
+
         tmp_fcmd[1] = NULL;
         *out_fcmd = tmp_fcmd;
-        return TRUE;
+        retval = TRUE;
     }else{
         /* must be either full path or just the cmd name */
         if (strchr(fcmd, '/')){
@@ -336,7 +352,7 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
                              "either full path or just the cmd name\n"),
                      fcmd, KRB5_USERS_NAME);
             *out_err = err;
-            return FALSE;
+            goto cleanup;
         }
 
 #ifndef CMD_PATH
@@ -344,7 +360,7 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
                          "the cmd name, CMD_PATH must be defined \n"),
                  fcmd, KRB5_USERS_NAME, fcmd);
         *out_err = err;
-        return FALSE;
+        goto cleanup;
 #else
 
         path = xstrdup (CMD_PATH);
@@ -358,7 +374,7 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
             asprintf(&err, _("Error: bad entry - %s in %s file, CMD_PATH "
                              "contains no paths \n"), fcmd, KRB5_USERS_NAME);
             *out_err = err;
-            return FALSE;
+            goto cleanup;
         }
 
         i=0;
@@ -367,7 +383,7 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
                 asprintf(&err, _("Error: bad path %s in CMD_PATH for %s must "
                                  "start with '/' \n"), tc, KRB5_USERS_NAME );
                 *out_err = err;
-                return FALSE;
+                goto cleanup;
             }
 
             tmp_fcmd[i] = xasprintf("%s/%s", tc, fcmd);
@@ -378,10 +394,15 @@ fcmd_resolve(char *fcmd, char ***out_fcmd, char **out_err)
 
         tmp_fcmd[i] = NULL;
         *out_fcmd = tmp_fcmd;
-        return TRUE;
+        retval = TRUE;
 
 #endif /* CMD_PATH */
     }
+
+cleanup:
+    if (!retval)
+        free_fcmd_array(tmp_fcmd);
+    return retval;
 }
 
 /********************************************
