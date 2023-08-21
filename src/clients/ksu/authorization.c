@@ -583,6 +583,7 @@ get_line(FILE *fp, char **out_line)
             chunk_count ++;
             if(!( line = (char *) realloc( line,
                                            chunk_count * sizeof(char) * BUFSIZ))){
+                free(line);
                 return  ENOMEM;
             }
 
