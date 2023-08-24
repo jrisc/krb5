@@ -183,24 +183,25 @@ krb5_get_nonexp_tkts(krb5_context context, krb5_ccache cc,
 {
 
     krb5_creds creds, temp_tktq, temp_tkt;
-    krb5_creds **temp_creds;
+    krb5_creds **temp_creds, **realloc_temp_creds;
     krb5_error_code retval=0;
     krb5_cc_cursor cur;
     int count = 0;
     int chunk_count = 1;
 
     if ( ! ( temp_creds = (krb5_creds **) malloc( CHUNK * sizeof(krb5_creds *)))){
-        return ENOMEM;
+        retval = ENOMEM;
+        goto cleanup;
     }
 
-
+    temp_creds[0] = NULL;
     memset(&temp_tktq, 0, sizeof(temp_tktq));
     memset(&temp_tkt, 0, sizeof(temp_tkt));
     memset(&creds, 0, sizeof(creds));
 
     /* initialize the cursor */
     if ((retval = krb5_cc_start_seq_get(context, cc, &cur))) {
-        return retval;
+        goto cleanup;
     }
 
     while (!(retval = krb5_cc_next_cred(context, cc, &cur, &creds))){
@@ -208,7 +209,7 @@ krb5_get_nonexp_tkts(krb5_context context, krb5_ccache cc,
         if (!krb5_is_config_principal(context, creds.server) &&
             (retval = krb5_check_exp(context, creds.times))){
             if (retval != KRB5KRB_AP_ERR_TKT_EXPIRED){
-                return retval;
+                goto cleanup;
             }
             if (auth_debug){
                 fprintf(stderr,"krb5_ccache_copy: CREDS EXPIRED:\n");
@@ -218,33 +219,38 @@ krb5_get_nonexp_tkts(krb5_context context, krb5_ccache cc,
             }
         }
         else {   /* these credentials didn't expire */
-
-            if ((retval = krb5_copy_creds(context, &creds,
-                                          &temp_creds[count]))){
-                return retval;
-            }
+            retval = krb5_copy_creds(context, &creds, &temp_creds[count]);
+            temp_creds[count+1] = NULL;
+            if (retval)
+                goto cleanup;
             count ++;
 
             if (count == (chunk_count * CHUNK -1)){
                 chunk_count ++;
-                if (!(temp_creds = (krb5_creds **) realloc(temp_creds,
-                                                           chunk_count * CHUNK * sizeof(krb5_creds *)))){
-                    return ENOMEM;
+
+                realloc_temp_creds = (krb5_creds **) realloc(temp_creds, chunk_count * CHUNK * sizeof(krb5_creds *));
+                if (realloc_temp_creds) {
+                    temp_creds = realloc_temp_creds;
+                } else {
+                    retval = ENOMEM;
+                    goto cleanup;
                 }
             }
         }
 
     }
 
-    temp_creds[count] = NULL;
     *creds_array   = temp_creds;
 
     if (retval == KRB5_CC_END) {
         retval = krb5_cc_end_seq_get(context, cc, &cur);
     }
 
-    return retval;
+cleanup:
+    if (retval && temp_creds != NULL)
+        free_creds_array(context, temp_creds);
 
+    return retval;
 }
 
 krb5_error_code
