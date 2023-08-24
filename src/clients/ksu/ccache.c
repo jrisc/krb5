@@ -40,6 +40,17 @@ copies the default cache into the secondary cache,
 
 ************************************************************************/
 
+static void
+free_creds_array(krb5_context context, krb5_creds ** creds_arr)
+{
+    size_t i;
+
+    for (i = 0; creds_arr[i]; ++i)
+        krb5_free_creds(context, creds_arr[i]);
+
+    free(creds_arr);
+}
+
 void show_credential(krb5_context, krb5_creds *, krb5_ccache);
 
 /* modifies only the cc_other, the algorithm may look a bit funny,
@@ -53,20 +64,18 @@ krb5_ccache_copy(krb5_context context, krb5_ccache cc_def,
                  krb5_boolean restrict_creds, krb5_principal primary_principal,
                  krb5_boolean *stored)
 {
-    int i=0;
-    krb5_error_code retval=0;
+    krb5_error_code retval;
     krb5_creds ** cc_def_creds_arr = NULL;
     krb5_creds ** cc_other_creds_arr = NULL;
 
     if (ks_ccache_is_initialized(context, cc_def)) {
-        if((retval = krb5_get_nonexp_tkts(context,cc_def,&cc_def_creds_arr))){
-            return retval;
-        }
+        if ((retval = krb5_get_nonexp_tkts(context,cc_def,&cc_def_creds_arr)))
+            goto cleanup;
     }
 
     retval = krb5_cc_initialize(context, cc_target, target_principal);
     if (retval)
-        return retval;
+        goto cleanup;
 
     if (restrict_creds) {
         retval = krb5_store_some_creds(context, cc_target, cc_def_creds_arr,
@@ -79,21 +88,11 @@ krb5_ccache_copy(krb5_context context, krb5_ccache cc_def,
                                       cc_other_creds_arr);
     }
 
-    if (cc_def_creds_arr){
-        while (cc_def_creds_arr[i]){
-            krb5_free_creds(context, cc_def_creds_arr[i]);
-            i++;
-        }
-    }
-
-    i=0;
-
-    if(cc_other_creds_arr){
-        while (cc_other_creds_arr[i]){
-            krb5_free_creds(context, cc_other_creds_arr[i]);
-            i++;
-        }
-    }
+cleanup:
+    if (cc_def_creds_arr)
+        free_creds_array(context, cc_def_creds_arr);
+    if (cc_other_creds_arr)
+        free_creds_array(context, cc_other_creds_arr);
 
     return retval;
 }
