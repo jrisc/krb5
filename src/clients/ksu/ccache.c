@@ -327,13 +327,14 @@ krb5_get_login_princ(const char *luser, char ***princ_list)
     struct stat sbuf;
     struct passwd *pwd;
     char pbuf[MAXPATHLEN];
-    FILE *fp;
-    char * linebuf;
+    FILE *fp = NULL;
+    char * linebuf = NULL;
     char *newline;
     int gobble, result;
-    char ** buf_out;
+    char ** buf_out, ** realloc_buf_out;
     struct stat st_temp;
-    int count = 0, chunk_count = 1;
+    size_t count = 0, chunk_count = 1, i;
+    krb5_error_code retval;
 
     /* no account => no access */
 
@@ -360,20 +361,26 @@ krb5_get_login_princ(const char *luser, char ***princ_list)
      * the user himself, or by root.  Otherwise, don't grant access.
      */
     if (fstat(fileno(fp), &sbuf)) {
-        fclose(fp);
-        return 0;
+        retval = 0;
+        goto cleanup;
     }
     if ((sbuf.st_uid != pwd->pw_uid) && sbuf.st_uid) {
-        fclose(fp);
-        return 0;
+        retval = 0;
+        goto cleanup;
     }
 
     /* check each line */
 
 
-    if( !(linebuf = (char *) calloc (BUFSIZ, sizeof(char)))) return ENOMEM;
+    if( !(linebuf = (char *) calloc (BUFSIZ, sizeof(char)))) {
+        retval = ENOMEM;
+        goto cleanup;
+    }
 
-    if (!(buf_out = (char **) malloc( CHUNK * sizeof(char *)))) return ENOMEM;
+    if (!(buf_out = (char **) malloc( CHUNK * sizeof(char *)))) {
+        retval = ENOMEM;
+        goto cleanup;
+    }
 
     while ( fgets(linebuf, BUFSIZ, fp) != NULL) {
         /* null-terminate the input string */
@@ -384,13 +391,17 @@ krb5_get_login_princ(const char *luser, char ***princ_list)
             *newline = '\0';
 
         buf_out[count] = linebuf;
+        linebuf = NULL;
         count ++;
 
         if (count == (chunk_count * CHUNK -1)){
             chunk_count ++;
-            if (!(buf_out = (char **) realloc(buf_out,
-                                              chunk_count * CHUNK * sizeof(char *)))){
-                return ENOMEM;
+            realloc_buf_out = (char **) realloc(buf_out, chunk_count * CHUNK * sizeof(char *));
+            if (realloc_buf_out != NULL) {
+                buf_out = realloc_buf_out;
+            } else {
+                retval = ENOMEM;
+                goto cleanup;
             }
         }
 
@@ -398,13 +409,28 @@ krb5_get_login_princ(const char *luser, char ***princ_list)
         if (!newline)
             while (((gobble = getc(fp)) != EOF) && gobble != '\n');
 
-        if( !(linebuf = (char *) calloc (BUFSIZ, sizeof(char)))) return ENOMEM;
+        if( !(linebuf = (char *) calloc (BUFSIZ, sizeof(char)))) {
+            retval = ENOMEM;
+            goto cleanup;
+        }
     }
 
     buf_out[count] = NULL;
     *princ_list = buf_out;
-    fclose(fp);
-    return 0;
+    retval = 0;
+
+cleanup:
+    if (fp != NULL)
+        fclose(fp);
+    if (linebuf != NULL)
+        free(linebuf);
+    if (retval != 0 && buf_out != NULL) {
+        for (i = 0; i < count; ++i)
+            free(buf_out[i]);
+        free(buf_out);
+    }
+
+    return retval;
 }
 
 void
