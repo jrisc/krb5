@@ -532,37 +532,37 @@ krb5_error_code
 krb5_ccache_overwrite(krb5_context context, krb5_ccache ccs, krb5_ccache cct,
                       krb5_principal primary_principal)
 {
-    krb5_error_code retval=0;
-    krb5_principal temp_principal;
+    krb5_error_code retval;
+    krb5_principal temp_principal = NULL;
     krb5_creds ** ccs_creds_arr = NULL;
-    int i=0;
+    krb5_boolean cc_initialized = FALSE;
 
     if (ks_ccache_is_initialized(context, ccs)) {
-        if ((retval = krb5_get_nonexp_tkts(context,  ccs, &ccs_creds_arr))){
-            return retval;
-        }
+        retval = krb5_get_nonexp_tkts(context,  ccs, &ccs_creds_arr);
+        if (retval)
+            goto cleanup;
     }
 
-    if (ks_ccache_is_initialized(context, cct)) {
-        if ((retval = krb5_cc_get_principal(context, cct, &temp_principal))){
-            return retval;
-        }
-    }else{
+    cc_initialized = ks_ccache_is_initialized(context, cct);
+    if (cc_initialized) {
+        retval = krb5_cc_get_principal(context, cct, &temp_principal);
+        if (retval)
+            goto cleanup;
+    } else {
         temp_principal = primary_principal;
     }
 
-    if ((retval = krb5_cc_initialize(context, cct, temp_principal))){
-        return retval;
-    }
+    retval = krb5_cc_initialize(context, cct, temp_principal);
+    if (retval)
+        goto cleanup;
 
     retval = krb5_store_all_creds(context, cct, ccs_creds_arr, NULL);
 
-    if (ccs_creds_arr){
-        while (ccs_creds_arr[i]){
-            krb5_free_creds(context, ccs_creds_arr[i]);
-            i++;
-        }
-    }
+cleanup:
+    if (ccs_creds_arr)
+        free_creds_array(context, ccs_creds_arr);
+    if (cc_initialized)
+        krb5_free_principal(context, temp_principal);
 
     return retval;
 }
