@@ -617,45 +617,44 @@ krb5_error_code
 krb5_ccache_filter(krb5_context context, krb5_ccache cc, krb5_principal prst)
 {
 
-    int i=0;
-    krb5_error_code retval=0;
-    krb5_principal temp_principal;
+    krb5_error_code retval;
+    krb5_principal temp_principal = NULL;
     krb5_creds ** cc_creds_arr = NULL;
     const char * cc_name;
     krb5_boolean stored;
 
-    cc_name = krb5_cc_get_name(context, cc);
-
-    if (ks_ccache_is_initialized(context, cc)) {
-        if (auth_debug) {
-            fprintf(stderr,"putting cache %s through a filter for -z option\n",                     cc_name);
-        }
-
-        if ((retval = krb5_get_nonexp_tkts(context, cc, &cc_creds_arr))){
-            return retval;
-        }
-
-        if ((retval = krb5_cc_get_principal(context, cc, &temp_principal))){
-            return retval;
-        }
-
-        if ((retval = krb5_cc_initialize(context, cc, temp_principal))){
-            return retval;
-        }
-
-        if ((retval = krb5_store_some_creds(context, cc, cc_creds_arr,
-                                            NULL, prst, &stored))){
-            return retval;
-        }
-
-        if (cc_creds_arr){
-            while (cc_creds_arr[i]){
-                krb5_free_creds(context, cc_creds_arr[i]);
-                i++;
-            }
-        }
+    if (!ks_ccache_is_initialized(context, cc)) {
+        retval = 0;
+        goto cleanup;
     }
-    return 0;
+
+    if (auth_debug) {
+        cc_name = krb5_cc_get_name(context, cc);
+        fprintf(stderr,"putting cache %s through a filter for -z option\n",
+                cc_name);
+    }
+
+    retval = krb5_get_nonexp_tkts(context, cc, &cc_creds_arr);
+    if (retval)
+        goto cleanup;
+
+    retval = krb5_cc_get_principal(context, cc, &temp_principal);
+    if (retval)
+        goto cleanup;
+
+    retval = krb5_cc_initialize(context, cc, temp_principal);
+    if (retval)
+        goto cleanup;
+
+    retval = krb5_store_some_creds(context, cc, cc_creds_arr, NULL, prst,
+                                   &stored);
+
+cleanup:
+    if (cc_creds_arr != NULL)
+        free_creds_array(context, cc_creds_arr);
+    krb5_free_principal(context, temp_principal);
+
+    return retval;
 }
 
 krb5_boolean
