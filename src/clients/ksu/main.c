@@ -918,7 +918,7 @@ resolve_target_cache(krb5_context context, krb5_principal princ,
             if (retval) {
                 com_err(prog_name, retval,
                         _("while generating part of the target ccache name"));
-                return retval;
+                goto cleanup;
             }
             if (asprintf(&ccname, "%s.%s", target, sym) < 0) {
                 retval = ENOMEM;
