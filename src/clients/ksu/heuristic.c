@@ -141,7 +141,7 @@ krb5_error_code
 filter(FILE *fp, char *cmd, char **k5users_list, char ***k5users_filt_list)
 {
 
-    krb5_error_code retval =0;
+    krb5_error_code retval;
     krb5_boolean found = FALSE;
     char * out_cmd = NULL;
     unsigned int i=0, j=0, found_count = 0, k=0;
@@ -150,14 +150,19 @@ filter(FILE *fp, char *cmd, char **k5users_list, char ***k5users_filt_list)
     *k5users_filt_list = NULL;
 
     if (! k5users_list){
-        return 0;
+        retval = 0;
+        goto cleanup;
     }
 
     while(k5users_list[i]){
+        if (out_cmd != NULL) {
+            free(out_cmd);
+            out_cmd = NULL;
+        }
 
         retval= k5users_lookup(fp, k5users_list[i], cmd, &found, &out_cmd);
         if (retval)
-            return retval;
+            goto cleanup;
 
         if (found == FALSE){
             free (k5users_list[i]);
@@ -169,8 +174,10 @@ filter(FILE *fp, char *cmd, char **k5users_list, char ***k5users_filt_list)
         i++;
     }
 
-    if (! (temp_filt_list = (char **) calloc(found_count +1, sizeof (char*))))
-        return ENOMEM;
+    if (!(temp_filt_list = (char **) calloc(found_count+1, sizeof(char*)))) {
+        retval = ENOMEM;
+        goto cleanup;
+    }
 
     for(j= 0, k=0; j < i; j++ ) {
         if (k5users_list[j]){
@@ -184,7 +191,13 @@ filter(FILE *fp, char *cmd, char **k5users_list, char ***k5users_filt_list)
     free (k5users_list);
 
     *k5users_filt_list = temp_filt_list;
-    return 0;
+
+    retval = 0;
+
+cleanup:
+    free(out_cmd);
+
+    return retval;
 }
 
 krb5_error_code
