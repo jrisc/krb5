@@ -689,13 +689,20 @@ krb5_find_princ_in_cache(krb5_context context, krb5_ccache cc,
     krb5_creds ** creds_list = NULL;
 
     if (ks_ccache_is_initialized(context, cc)) {
-        if ((retval = krb5_get_nonexp_tkts(context, cc, &creds_list))){
-            return retval;
-        }
+        retval = krb5_get_nonexp_tkts(context, cc, &creds_list);
+        if (retval)
+            goto cleanup;
     }
 
     *found = krb5_find_princ_in_cred_list(context, creds_list, princ);
-    return 0;
+
+    retval = 0;
+
+cleanup:
+    if (creds_list != NULL)
+        free_creds_array(context, creds_list);
+
+    return retval;
 }
 
 krb5_boolean
