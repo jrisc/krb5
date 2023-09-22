@@ -37,33 +37,31 @@ krb5_auth_check(krb5_context context, krb5_principal client_pname,
                 char *target_user, krb5_ccache cc, int *path_passwd,
                 uid_t target_uid)
 {
-    krb5_principal client;
+    krb5_principal client = NULL;
     krb5_verify_init_creds_opt vfy_opts;
-    krb5_creds tgt, tgtq;
-    krb5_error_code retval =0;
+    krb5_creds tgt = { 0 }, tgtq = { 0 };
+    krb5_error_code retval;
     int got_it = 0;
     krb5_boolean zero_password;
+    krb5_boolean ok = FALSE;
 
     *path_passwd = 0;
-    memset(&tgtq, 0, sizeof(tgtq));
-    memset(&tgt, 0, sizeof(tgt));
 
     if ((retval= krb5_copy_principal(context,  client_pname, &client))){
         com_err(prog_name, retval, _("while copying client principal"));
-        return (FALSE) ;
+        goto cleanup;
     }
 
     if ((retval= krb5_copy_principal(context,  client, &tgtq.client))){
         com_err(prog_name, retval, _("while copying client principal"));
-        return (FALSE) ;
+        goto cleanup;
     }
 
     if ((retval = ksu_tgtname(context,  krb5_princ_realm(context, client),
                               krb5_princ_realm(context, client),
                               &tgtq.server))){
         com_err(prog_name, retval, _("while creating tgt for local realm"));
-        krb5_free_principal(context, client);
-        return (FALSE) ;
+        goto cleanup;
     }
 
     if (auth_debug){ dump_principal(context, "local tgt principal name", tgtq.server ); }
@@ -77,7 +75,7 @@ krb5_auth_check(krb5_context context, krb5_principal client_pname,
         if ((retval != KRB5_CC_NOTFOUND) &&
             (retval != KRB5KRB_AP_ERR_TKT_EXPIRED)){
             com_err(prog_name, retval, _("while retrieving creds from cache"));
-            return (FALSE) ;
+            goto cleanup;
         }
     } else{
         got_it = 1;
@@ -88,7 +86,7 @@ krb5_auth_check(krb5_context context, krb5_principal client_pname,
 #ifdef GET_TGT_VIA_PASSWD
         if (krb5_seteuid(0)||krb5_seteuid(target_uid)) {
             com_err("ksu", errno, _("while switching to target uid"));
-            return FALSE;
+            goto cleanup;
         }
 
 
@@ -102,19 +100,19 @@ krb5_auth_check(krb5_context context, krb5_principal client_pname,
                                    &tgt) == FALSE) {
             krb5_seteuid(0);
 
-            return FALSE;
+            goto cleanup;
         }
         *path_passwd = 1;
         if (krb5_seteuid(0)) {
             com_err("ksu", errno, _("while reclaiming root uid"));
-            return FALSE;
+            goto cleanup;
         }
 
 #else
         plain_dump_principal (context, client);
         fprintf(stderr,
                 _("does not have any appropriate tickets in the cache.\n"));
-        return FALSE;
+        goto cleanup;
 
 #endif /* GET_TGT_VIA_PASSWD */
 
@@ -126,10 +124,17 @@ krb5_auth_check(krb5_context context, krb5_principal client_pname,
                                     &vfy_opts);
     if (retval) {
         com_err(prog_name, retval, _("while verifying ticket for server"));
-        return (FALSE);
+        goto cleanup;
     }
 
-    return (TRUE);
+    ok = TRUE;
+
+cleanup:
+    krb5_free_principal(context, client);
+    krb5_free_cred_contents(context, &tgt);
+    krb5_free_cred_contents(context, &tgtq);
+
+    return ok;
 }
 
 krb5_boolean
