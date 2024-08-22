@@ -164,14 +164,40 @@ krad_attrset_copy(const krad_attrset *set, krad_attrset **copy)
     return 0;
 }
 
+static krb5_error_code
+iter_attr_encode(krb5_context ctx, const char *secret,
+                 const unsigned char *auth, krad_attr type,
+                 const krb5_data *data, unsigned char outbuf[MAX_ATTRSETSIZE],
+                 size_t *i)
+{
+    unsigned char buffer[MAX_ATTRSIZE];
+    size_t attrlen;
+    krb5_error_code retval;
+
+    retval = kr_attr_encode(ctx, secret, auth, type, data, buffer, &attrlen);
+    if (retval)
+        return retval;
+
+    if (*i + attrlen + 2 > MAX_ATTRSETSIZE)
+        return EMSGSIZE;
+
+    outbuf[(*i)++] = type;
+    outbuf[(*i)++] = attrlen + 2;
+    memcpy(outbuf + *i, buffer, attrlen);
+    *i += attrlen;
+
+    return 0;
+}
+
 krb5_error_code
 kr_attrset_encode(const krad_attrset *set, const char *secret,
                   const unsigned char *auth,
                   unsigned char outbuf[MAX_ATTRSETSIZE], size_t *outlen)
 {
-    unsigned char buffer[MAX_ATTRSIZE];
     krb5_error_code retval;
-    size_t i = 0, attrlen;
+    krad_attr msgauth_type;
+    const krb5_data *msgauth;
+    size_t i = 0;
     attr *a;
 
     if (set == NULL) {
@@ -179,19 +205,34 @@ kr_attrset_encode(const krad_attrset *set, const char *secret,
         return 0;
     }
 
-    K5_TAILQ_FOREACH(a, &set->list, list) {
-        retval = kr_attr_encode(set->ctx, secret, auth, a->type, &a->attr,
-                                buffer, &attrlen);
+    msgauth_type = krad_attr_name2num("Message-Authenticator");
+
+    msgauth = krad_attrset_get(set, msgauth_type, 0);
+    if (msgauth) {
+        /* Write Message-Authenticator as first attribute.
+         *
+         * draft-ietf-radext-deprecating-radius-03 (section 5.2.4):
+         *   Servers MUST add Message-Authenticator as the first attribute in
+         *   all responses to Access-Request packets.
+         *
+         * draft-ietf-radext-deprecating-radius-03 (section 5.2.1):
+         *   The Message-Authenticator SHOULD be the first attribute in all
+         *   Access-Request packets.
+         */
+        retval = iter_attr_encode(set->ctx, secret, auth, msgauth_type, msgauth,
+                                  outbuf, &i);
         if (retval != 0)
             return retval;
+    }
 
-        if (i + attrlen + 2 > MAX_ATTRSETSIZE)
-            return EMSGSIZE;
+    K5_TAILQ_FOREACH(a, &set->list, list) {
+        if (a->type == msgauth_type)
+            continue;
 
-        outbuf[i++] = a->type;
-        outbuf[i++] = attrlen + 2;
-        memcpy(&outbuf[i], buffer, attrlen);
-        i += attrlen;
+        retval = iter_attr_encode(set->ctx, secret, auth, a->type, &a->attr,
+                                  outbuf, &i);
+        if (retval != 0)
+            return retval;
     }
 
     *outlen = i;

@@ -43,6 +43,8 @@
 #define UCHAR_MAX 255
 #endif
 
+#define MD5_DIGEST_SIZE 16
+
 /* RFC 2865 */
 #define MAX_ATTRSIZE (UCHAR_MAX - 2)
 #define MAX_ATTRSETSIZE (KRAD_PACKET_SIZE_MAX - 20)

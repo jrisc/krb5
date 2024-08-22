@@ -2403,4 +2403,21 @@ krb5_boolean
 k5_sname_compare(krb5_context context, krb5_const_principal sname,
                  krb5_const_principal princ);
 
+/**
+ * Generate HMAC-MD5 keyed-checksum as defined by RFC2104.
+ *
+ * @param [in]  key       Secret shared key
+ * @param [in]  data      IOV array
+ * @param [in]  num_data  Size of @a data
+ * @param [out] output    Output data
+ *
+ * This function accepts abritrary key size and digest data as provided (without
+ * inserting any key usage bits).
+ *
+ * @retval 0 Success; otherwise - Kerberos error codes
+ */
+krb5_error_code
+k5_rfc2104_hmacmd5_checksum(const krb5_data *key, const krb5_crypto_iov *data,
+                            size_t num_data, krb5_data *output);
+
 #endif /* _KRB5_INT_H */

@@ -92,3 +92,53 @@ cleanup:
     free(hash_iov);
     return ret;
 }
+
+krb5_error_code
+k5_rfc2104_hmacmd5_checksum(const krb5_data *key, const krb5_crypto_iov *data,
+                            size_t num_data, krb5_data *output)
+{
+    krb5_error_code ret;
+    const struct krb5_hash_provider *hash;
+    krb5_keyblock keyblock = {0};
+    krb5_data hashed_key = empty_data();
+    krb5_crypto_iov iov;
+
+    hash = &krb5int_hash_md5;
+
+    if (key->length > hash->blocksize) {
+        /* Key is too long, hash it to shrink it to 16 bits
+         * (see RFC2104 section 3). */
+        hashed_key.length = hash->hashsize;
+        ret = alloc_data(&hashed_key, hash->hashsize);
+        if (ret)
+            goto cleanup;
+
+        iov.flags = KRB5_CRYPTO_TYPE_DATA;
+        iov.data = *key;
+
+        ret = hash->hash(&iov, 1, &hashed_key);
+        if (ret)
+            goto cleanup;
+
+        key = &hashed_key;
+    }
+
+    keyblock.length = key->length;
+    keyblock.contents = malloc(keyblock.length);
+    if (!keyblock.contents) {
+        ret = ENOMEM;
+        goto cleanup;
+    }
+
+    ret = k5_rand2key_direct(key, &keyblock);
+    if (ret)
+        goto cleanup;
+
+    ret = krb5int_hmac_keyblock(hash, &keyblock, data, num_data, output);
+
+cleanup:
+    zapfree(hashed_key.data, hashed_key.length);
+    zapfree(keyblock.contents, keyblock.length);
+
+    return ret;
+}
