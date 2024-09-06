@@ -211,6 +211,20 @@ krad_packet_decode_response(krb5_context ctx, const char *secret,
                             void *data, const krad_packet **reqpkt,
                             krad_packet **rsppkt);
 
+/*
+ * Decode a response radius packet from krb5_data.
+ *
+ * Identical to krad_packet_decode_response(), but does not require
+ * Message-Authenticator attribute to be present in Access-Request,
+ * Access-Accept, Access-Reject, Access-Challenge, and Protocol-Error.
+ */
+krb5_error_code
+krad_packet_decode_response_unsafe(krb5_context ctx, const char *secret,
+                                   const krb5_data *buffer,
+                                   krad_packet_iter_cb cb,
+                                   void *data, const krad_packet **reqpkt,
+                                   krad_packet **rsppkt);
+
 /* Encode packet. */
 const krb5_data *
 krad_packet_encode(const krad_packet *pkt);

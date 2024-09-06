@@ -686,11 +686,10 @@ krad_packet_decode_request(krb5_context ctx, const char *secret,
     return retval;
 }
 
-krb5_error_code
-krad_packet_decode_response(krb5_context ctx, const char *secret,
-                            const krb5_data *buffer, krad_packet_iter_cb cb,
-                            void *data, const krad_packet **reqpkt,
-                            krad_packet **rsppkt)
+static krb5_error_code
+decode_response(krb5_context ctx, const char *secret, const krb5_data *buffer,
+                krad_packet_iter_cb cb, void *data, const krad_packet **reqpkt,
+                krad_packet **rsppkt, krb5_boolean msgauth_enforced)
 {
     uchar auth[AUTH_FIELD_SIZE];
     const krad_packet *req = NULL;
@@ -721,7 +720,8 @@ krad_packet_decode_response(krb5_context ctx, const char *secret,
                 retval = verify_msgauth(secret, req, rsp);
                 if (retval != 0)
                     goto cleanup;
-            } else if (requires_msgauth(secret, pkt_code_get(rsp))) {
+            } else if (msgauth_enforced
+                       && requires_msgauth(secret, pkt_code_get(rsp))) {
                 retval = ENODATA;
                 goto cleanup;
             }
@@ -740,6 +740,26 @@ cleanup:
         krad_packet_free(rsp);
 
     return retval;
+}
+
+krb5_error_code
+krad_packet_decode_response(krb5_context ctx, const char *secret,
+                            const krb5_data *buffer, krad_packet_iter_cb cb,
+                            void *data, const krad_packet **reqpkt,
+                            krad_packet **rsppkt)
+{
+    return decode_response(ctx, secret, buffer, cb, data, reqpkt, rsppkt, TRUE);
+}
+
+krb5_error_code
+krad_packet_decode_response_unsafe(krb5_context ctx, const char *secret,
+                                   const krb5_data *buffer,
+                                   krad_packet_iter_cb cb,
+                                   void *data, const krad_packet **reqpkt,
+                                   krad_packet **rsppkt)
+{
+    return decode_response(ctx, secret, buffer, cb, data, reqpkt, rsppkt,
+                           FALSE);
 }
 
 const krb5_data *
