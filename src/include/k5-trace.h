@@ -219,6 +219,8 @@ void krb5int_trace(krb5_context context, const char *fmt, ...);
     TRACE(c, "Getting initial credentials for {princ}", princ)
 #define TRACE_INIT_CREDS_AUTO_FAST_ARMOR(c)                             \
     TRACE(c, "Acquiring anonymous PKINIT armor ticket for FAST")
+#define TRACE_INIT_CREDS_AUTO_FAST_ARMOR_FAIL(c)                        \
+    TRACE(c, "Failed to acquire anonymous PKINIT armor; proceeding without FAST")
 #define TRACE_INIT_CREDS_AS_KEY_GAK(c, keyblock)                        \
     TRACE(c, "AS key obtained from gak_fct: {keyblock}", keyblock)
 #define TRACE_INIT_CREDS_AS_KEY_PREAUTH(c, keyblock)                    \

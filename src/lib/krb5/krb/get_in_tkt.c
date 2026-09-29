@@ -1986,16 +1986,24 @@ krb5_init_creds_step(krb5_context context,
         /* Drive the nested context to acquire an anonymous TGT. */
         code = krb5_init_creds_step(context, ctx->auto_armor_ctx, in, out,
                                     realm, flags);
-        if (code || (*flags & KRB5_INIT_CREDS_STEP_FLAG_CONTINUE))
+        if (*flags & KRB5_INIT_CREDS_STEP_FLAG_CONTINUE)
             return code;
 
-        /* The nested context is complete.  Discard it to signal that the outer
-         * state machine should proceed using auto_armor_ccache. */
+        if (code) {
+            /* Anonymous PKINIT failed.
+             * Discard the armor ccache and proceed without FAST. */
+            TRACE_INIT_CREDS_AUTO_FAST_ARMOR_FAIL(context);
+            krb5_cc_destroy(context, ctx->auto_armor_ccache);
+            ctx->auto_armor_ccache = NULL;
+        }
+
+        /* Anonymous PKINIT pre-authentication attempt done. */
         krb5_init_creds_free(context, ctx->auto_armor_ctx);
         ctx->auto_armor_ctx = NULL;
 
-        /* Begin the actual AS request, asserting that FAST is available. */
-        code = restart_init_creds_loop(context, ctx, TRUE);
+        /* Begin the actual AS request, using FAST if we got armor. */
+        code = restart_init_creds_loop(context, ctx,
+                                       ctx->auto_armor_ccache != NULL);
         if (code)
             return code;
     } else if (in->length != 0) {

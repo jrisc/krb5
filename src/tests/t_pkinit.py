@@ -139,6 +139,20 @@ out, trace = realm.kinit('@%s' % realm.realm, flags=['-n'], env=afa_env,
 if 'Acquiring anonymous PKINIT armor ticket for FAST' in trace:
     fail('auto_fast_armor improperly triggered for anonymous kinit')
 
+# auto_fast_armor should fall back to non-FAST if anonymous PKINIT is
+# unavailable (e.g., WELLKNOWN/ANONYMOUS principal does not exist).
+mark('auto_fast_armor fallback')
+realm.run([kadminl, 'delprinc', 'WELLKNOWN/ANONYMOUS'])
+afa_fallback_msgs = ('Acquiring anonymous PKINIT armor ticket for FAST',
+                     'Failed to acquire anonymous PKINIT armor; '
+                     'proceeding without FAST',
+                     'Preauth module encrypted_timestamp (2) (real) '
+                     'returned: 0/Success')
+realm.kinit(realm.user_princ, password=password('user'), env=afa_env,
+            expected_trace=afa_fallback_msgs)
+realm.klist(realm.user_princ)
+realm.addprinc('WELLKNOWN/ANONYMOUS')
+
 # For the remaining tests in this realm, remove the keys on user for
 # better error reporting (by preventing encrypted timestamp fallback).
 realm.run([kadminl, 'purgekeys', '-all', realm.user_princ])
@@ -484,5 +498,22 @@ realm.run(tool_cmd + ['-w', privkey_ec_pem, '-y', 'privkey',
 realm.kinit(realm.user_princ, flags=['-X', p11_attr], password='userpin')
 realm.klist(realm.user_princ)
 realm.run([kvno, realm.host_princ])
+
+# Test auto_fast_armor fallback in a realm without PKINIT on the KDC.
+realm.stop()
+
+mark('auto_fast_armor fallback (no KDC PKINIT, no anonymous principal)')
+realm = K5Realm(get_creds=False)
+afa_conf = {'realms': {'$realm': {'auto_fast_armor': 'true'}}}
+afa_env = realm.special_env('auto_fast_nopk', False, krb5_conf=afa_conf)
+realm.kinit(realm.user_princ, password=password('user'), env=afa_env,
+            expected_trace=afa_fallback_msgs)
+realm.klist(realm.user_princ)
+
+mark('auto_fast_armor fallback (no KDC PKINIT, anonymous principal exists)')
+realm.addprinc('WELLKNOWN/ANONYMOUS')
+realm.kinit(realm.user_princ, password=password('user'), env=afa_env,
+            expected_trace=afa_fallback_msgs)
+realm.klist(realm.user_princ)
 
 success('PKINIT tests')
